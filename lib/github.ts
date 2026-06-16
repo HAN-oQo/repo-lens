@@ -14,6 +14,11 @@ import type { RepoMeta, RepoRef, TreeEntry } from "./types";
 const API = "https://api.github.com";
 const RAW = "https://raw.githubusercontent.com";
 export const GH_TOKEN_LS = "repolens-gh-token";
+export const OAUTH_BASE_LS = "repolens-oauth-url";
+
+// Default "Sign in with GitHub" worker base. Edit this (or set it in ⚙) to your
+// deployed worker from workers/github-oauth.worker.js, e.g. https://repolens-auth.<you>.workers.dev
+export const DEFAULT_OAUTH_BASE = "";
 
 export function getToken(): string {
   try {
@@ -21,6 +26,41 @@ export function getToken(): string {
   } catch {
     return "";
   }
+}
+
+export function getOAuthBase(): string {
+  try {
+    return (localStorage.getItem(OAUTH_BASE_LS) || DEFAULT_OAUTH_BASE).trim().replace(/\/+$/, "");
+  } catch {
+    return DEFAULT_OAUTH_BASE;
+  }
+}
+
+/** Kick off the OAuth flow: navigate to the worker, which redirects to GitHub. */
+export function startGitHubLogin(base: string) {
+  const appUrl = window.location.href.split("#")[0];
+  window.location.href = `${base.replace(/\/+$/, "")}/gh/login?redirect=${encodeURIComponent(appUrl)}`;
+}
+
+/** If we came back from OAuth with #gh_token=…, store it and clean the URL. */
+export function consumeOAuthToken(): string | null {
+  try {
+    const m = window.location.hash.match(/[#&]gh_token=([^&]+)/);
+    if (!m) return null;
+    const token = decodeURIComponent(m[1]);
+    localStorage.setItem(GH_TOKEN_LS, token);
+    const clean = window.location.hash.replace(/[#&]gh_token=[^&]+/, "").replace(/^#$/, "");
+    history.replaceState(null, "", window.location.pathname + window.location.search + (clean && clean !== "#" ? clean : ""));
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+export function signOut() {
+  try {
+    localStorage.removeItem(GH_TOKEN_LS);
+  } catch {}
 }
 
 function apiHeaders(token: string): HeadersInit {

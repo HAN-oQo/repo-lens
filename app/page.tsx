@@ -7,13 +7,18 @@ import MarkdownView from "@/components/MarkdownView";
 import GraphView from "@/components/GraphView";
 import AskPanel from "@/components/AskPanel";
 import {
+  DEFAULT_OAUTH_BASE,
   GH_TOKEN_LS,
+  OAUTH_BASE_LS,
+  consumeOAuthToken,
   fetchFile,
   fetchLanguages,
   fetchRepoMeta,
   fetchTree,
   findReadme,
   parseRepoUrl,
+  signOut,
+  startGitHubLogin,
   validateToken,
 } from "@/lib/github";
 import { buildTree } from "@/lib/tree";
@@ -54,6 +59,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [token, setToken] = useState("");
+  const [oauthUrl, setOauthUrl] = useState("");
   const [authLogin, setAuthLogin] = useState("");
   const [authErr, setAuthErr] = useState("");
   const [validating, setValidating] = useState(false);
@@ -63,9 +69,19 @@ export default function Home() {
   const [askOpen, setAskOpen] = useState(true);
 
   useEffect(() => {
+    const consumed = consumeOAuthToken(); // returns token if we just came back from OAuth
+    let tk = "";
     try {
-      setToken(localStorage.getItem(GH_TOKEN_LS) || "");
+      tk = localStorage.getItem(GH_TOKEN_LS) || "";
+      setOauthUrl(localStorage.getItem(OAUTH_BASE_LS) || DEFAULT_OAUTH_BASE);
     } catch {}
+    setToken(tk);
+    if (tk) {
+      validateToken(tk)
+        .then(setAuthLogin)
+        .catch(() => {});
+      if (consumed) flash("Signed in with GitHub.");
+    }
   }, []);
 
   const blobPaths = useMemo(() => entries.filter((e) => e.type === "blob").map((e) => e.path), [entries]);
@@ -239,6 +255,27 @@ export default function Home() {
     }
   };
 
+  const signInGitHub = () => {
+    const base = oauthUrl.trim();
+    setAuthErr("");
+    if (!base) {
+      setAuthErr("Set the auth server URL first (your deployed OAuth worker).");
+      return;
+    }
+    try {
+      localStorage.setItem(OAUTH_BASE_LS, base);
+    } catch {}
+    startGitHubLogin(base); // navigates away to GitHub
+  };
+
+  const doSignOut = () => {
+    signOut();
+    setToken("");
+    setAuthLogin("");
+    setAuthErr("");
+    flash("Signed out of GitHub.");
+  };
+
   // ---------------- resizers ----------------
   function startResize(which: "sidebar" | "ask", e: React.PointerEvent) {
     e.preventDefault();
@@ -302,33 +339,50 @@ export default function Home() {
               padding: 14, width: 380, boxShadow: "0 12px 40px rgba(0,0,0,.45)",
             }}
           >
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>GitHub token — for private repos</div>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, lineHeight: 1.55 }}>
-              Needed to load private repositories (also raises the rate limit to 5000/hr).
-              Stored <b>only in this browser</b> (localStorage) and sent only to{" "}
-              <code style={{ font: "11px var(--mono)" }}>api.github.com</code>.
-            </div>
-            <input
-              className="url-input" type="password" value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="github_pat_… or ghp_…" style={{ width: "100%" }}
-              spellCheck={false}
-            />
-            {authLogin && (
-              <div style={{ fontSize: 12, color: "var(--green)", marginTop: 8 }}>✓ Authenticated as {authLogin}</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>GitHub access — for private repos</div>
+
+            {authLogin ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 10px" }}>
+                <span style={{ fontSize: 13, color: "var(--green)" }}>✓ Signed in as <b>{authLogin}</b></span>
+                <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={doSignOut}>Sign out</button>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, lineHeight: 1.55 }}>
+                  Sign in with GitHub to load any repo you can access (your permissions, SSO handled automatically). The token lives only in this browser.
+                </div>
+                <label style={{ fontSize: 11, color: "var(--muted)" }}>Auth server URL (your deployed OAuth worker)</label>
+                <input
+                  className="url-input" type="text" value={oauthUrl}
+                  onChange={(e) => setOauthUrl(e.target.value)}
+                  placeholder="https://repolens-auth.<you>.workers.dev"
+                  style={{ width: "100%", marginTop: 3 }} spellCheck={false}
+                />
+                <button className="btn" style={{ width: "100%", marginTop: 10 }} onClick={signInGitHub}>
+                  Sign in with GitHub
+                </button>
+              </>
             )}
+
             {authErr && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>✕ {authErr}</div>}
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn" onClick={saveToken} disabled={validating}>
-                {validating ? "Checking…" : "Save & verify"}
+
+            <details style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+              <summary style={{ fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>Or paste a token instead (no server needed)</summary>
+              <input
+                className="url-input" type="password" value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="github_pat_… or ghp_…" style={{ width: "100%", marginTop: 8 }} spellCheck={false}
+              />
+              <button className="btn" style={{ marginTop: 8 }} onClick={saveToken} disabled={validating}>
+                {validating ? "Checking…" : "Save & verify token"}
               </button>
+              <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 10, lineHeight: 1.6 }}>
+                Settings → Developer settings → Tokens. Fine-grained: the repo + <code style={{ font: "11px var(--mono)" }}>Contents/Metadata: Read</code>; classic: <code style={{ font: "11px var(--mono)" }}>repo</code> scope. Org with SAML SSO: click <b>Authorize</b> on the token.
+              </div>
+            </details>
+
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>Close</button>
-            </div>
-            <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 12, lineHeight: 1.6, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-              <b>How to make one:</b> github.com → Settings → Developer settings → Tokens.
-              <br />• <b>Fine-grained:</b> grant the repo, with <code style={{ font: "11px var(--mono)" }}>Contents: Read</code> + <code style={{ font: "11px var(--mono)" }}>Metadata: Read</code>.
-              <br />• <b>Classic:</b> the <code style={{ font: "11px var(--mono)" }}>repo</code> scope.
-              <br />• Org with SAML SSO (e.g. company orgs): click <b>“Configure SSO” / “Authorize”</b> on the token, or it returns 404/403.
             </div>
           </div>
         )}

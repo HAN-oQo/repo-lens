@@ -28,7 +28,7 @@ site on GitHub Pages.
 | --- | --- |
 | File tree | `GET /repos/:o/:r/git/trees/:branch?recursive=1` — **one** API call |
 | File contents | `raw.githubusercontent.com` CDN — **doesn't** consume the REST rate limit |
-| Rate limit / private repos | optional GitHub token (⚙), stored only in `localStorage` |
+| Private repos / rate limit | **Sign in with GitHub** (OAuth) or paste a token (⚙); token stored only in `localStorage` |
 | Caching | IndexedDB, keyed by `repo@branch:path` |
 | Import graph | regex extraction + relative-path resolution, in the browser |
 | Editor | `@monaco-editor/react` (loads Monaco from CDN) |
@@ -37,6 +37,21 @@ site on GitHub Pages.
 The default AI bot accepts requests only from the deployed site's origin
 (`https://han-oqo.github.io`). On `localhost`, choose a *"your API key"* provider in
 the Ask panel's settings.
+
+## Private repos — "Sign in with GitHub"
+
+GitHub's OAuth token exchange needs a client secret, which a static page can't hold,
+so sign-in uses one tiny serverless endpoint: **`workers/github-oauth.worker.js`**
+(a Cloudflare Worker, ~deploy like the blog's ask proxy). It holds the OAuth App
+secret and hands the browser only the user's own access token (via URL fragment).
+
+1. Register an **OAuth App** (Settings → Developer settings → OAuth Apps). Callback
+   URL = `https://<worker-host>/gh/callback`.
+2. Deploy the worker (`wrangler secret put GH_CLIENT_ID` / `GH_CLIENT_SECRET`; set
+   `ALLOWED_REDIRECTS`). See the header comment in the worker file.
+3. In Repo Lens ⚙ → paste the worker URL → **Sign in with GitHub**.
+
+No worker? The ⚙ panel also accepts a Personal Access Token (zero backend).
 
 ## Develop
 

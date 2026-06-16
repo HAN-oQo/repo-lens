@@ -1,0 +1,13 @@
+# Rename to wrangler.toml. Secrets are set with `wrangler secret put`, NOT here.
+name = "repolens-auth"
+main = "github-oauth.worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Comma-separated allowed redirect prefixes (open-redirect / CSRF guard).
+# Must include your deployed app URL and, for local dev, http://localhost:3000.
+ALLOWED_REDIRECTS = "https://han-oqo.github.io/repo-lens,http://localhost:3000"
+
+# Set these as SECRETS (not committed):
+#   wrangler secret put GH_CLIENT_ID
+#   wrangler secret put GH_CLIENT_SECRET
