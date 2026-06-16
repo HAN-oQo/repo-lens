@@ -14,6 +14,7 @@ import {
   fetchTree,
   findReadme,
   parseRepoUrl,
+  validateToken,
 } from "@/lib/github";
 import { buildTree } from "@/lib/tree";
 import { buildGraph, mapLimit } from "@/lib/imports";
@@ -53,6 +54,9 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [token, setToken] = useState("");
+  const [authLogin, setAuthLogin] = useState("");
+  const [authErr, setAuthErr] = useState("");
+  const [validating, setValidating] = useState(false);
 
   const [sidebarW, setSidebarW] = useState(280);
   const [askW, setAskW] = useState(440);
@@ -210,13 +214,29 @@ export default function Home() {
     [fileSet, blobPaths]
   );
 
-  const saveToken = () => {
+  const saveToken = async () => {
+    const tk = token.trim();
+    setAuthErr("");
+    setAuthLogin("");
     try {
-      if (token.trim()) localStorage.setItem(GH_TOKEN_LS, token.trim());
+      if (tk) localStorage.setItem(GH_TOKEN_LS, tk);
       else localStorage.removeItem(GH_TOKEN_LS);
     } catch {}
-    setShowSettings(false);
-    flash(token.trim() ? "Token saved (5000/hr + private repos)." : "Token cleared.");
+    if (!tk) {
+      flash("Token cleared.");
+      setShowSettings(false);
+      return;
+    }
+    setValidating(true);
+    try {
+      const login = await validateToken(tk);
+      setAuthLogin(login);
+      flash(`Token OK — authenticated as ${login}. Private repos & 5000/hr enabled.`);
+    } catch (e: any) {
+      setAuthErr(e?.message || "Token check failed.");
+    } finally {
+      setValidating(false);
+    }
   };
 
   // ---------------- resizers ----------------
@@ -279,20 +299,36 @@ export default function Home() {
             style={{
               position: "absolute", top: 46, right: 10, zIndex: 40,
               background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10,
-              padding: 14, width: 340, boxShadow: "0 12px 40px rgba(0,0,0,.45)",
+              padding: 14, width: 380, boxShadow: "0 12px 40px rgba(0,0,0,.45)",
             }}
           >
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
-              GitHub token (optional) — raises rate limit to 5000/hr and unlocks private repos. Stored only in this browser.
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>GitHub token — for private repos</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, lineHeight: 1.55 }}>
+              Needed to load private repositories (also raises the rate limit to 5000/hr).
+              Stored <b>only in this browser</b> (localStorage) and sent only to{" "}
+              <code style={{ font: "11px var(--mono)" }}>api.github.com</code>.
             </div>
             <input
               className="url-input" type="password" value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="ghp_… (read-only is enough)" style={{ width: "100%" }}
+              placeholder="github_pat_… or ghp_…" style={{ width: "100%" }}
+              spellCheck={false}
             />
+            {authLogin && (
+              <div style={{ fontSize: 12, color: "var(--green)", marginTop: 8 }}>✓ Authenticated as {authLogin}</div>
+            )}
+            {authErr && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>✕ {authErr}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn" onClick={saveToken}>Save</button>
+              <button className="btn" onClick={saveToken} disabled={validating}>
+                {validating ? "Checking…" : "Save & verify"}
+              </button>
               <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>Close</button>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 12, lineHeight: 1.6, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+              <b>How to make one:</b> github.com → Settings → Developer settings → Tokens.
+              <br />• <b>Fine-grained:</b> grant the repo, with <code style={{ font: "11px var(--mono)" }}>Contents: Read</code> + <code style={{ font: "11px var(--mono)" }}>Metadata: Read</code>.
+              <br />• <b>Classic:</b> the <code style={{ font: "11px var(--mono)" }}>repo</code> scope.
+              <br />• Org with SAML SSO (e.g. company orgs): click <b>“Configure SSO” / “Authorize”</b> on the token, or it returns 404/403.
             </div>
           </div>
         )}

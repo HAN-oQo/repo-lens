@@ -88,6 +88,19 @@ export function parseRepoUrl(input: string): { owner: string; repo: string; bran
   return { owner, repo };
 }
 
+/** Validate a token and return the authenticated login (throws on bad token). */
+export async function validateToken(token: string): Promise<string> {
+  const res = await fetch(API + "/user", { headers: apiHeaders(token) });
+  if (!res.ok) {
+    throw new GitHubError(
+      res.status,
+      res.status === 401 ? "Invalid or expired token." : `Token check failed (GitHub ${res.status}).`
+    );
+  }
+  const j = await res.json();
+  return (j.login as string) || "?";
+}
+
 export async function fetchRepoMeta(owner: string, repo: string): Promise<RepoMeta> {
   const j = await api<Record<string, unknown>>(`/repos/${owner}/${repo}`, getToken());
   return {
@@ -154,11 +167,22 @@ export async function fetchFile(ref: RepoRef, path: string): Promise<string> {
   let text: string;
   if (token) {
     // contents API works for private + public (base64), counts against the 5000/hr budget.
-    const j = await api<{ content?: string; encoding?: string }>(
+    const j = await api<{ content?: string; encoding?: string; sha?: string }>(
       `/repos/${ref.owner}/${ref.repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref.branch)}`,
       token
     );
-    text = j.content && j.encoding === "base64" ? decodeBase64(j.content) : (j.content || "");
+    if (j.content && j.encoding === "base64") {
+      text = decodeBase64(j.content);
+    } else if (j.sha) {
+      // Files > 1 MB come back with empty content — fetch the blob by sha instead.
+      const blob = await api<{ content?: string; encoding?: string }>(
+        `/repos/${ref.owner}/${ref.repo}/git/blobs/${j.sha}`,
+        token
+      );
+      text = blob.content && blob.encoding === "base64" ? decodeBase64(blob.content) : blob.content || "";
+    } else {
+      text = j.content || "";
+    }
   } else {
     const res = await fetch(`${RAW}/${ref.owner}/${ref.repo}/${encodeURIComponent(ref.branch)}/${path.split("/").map(encodeURIComponent).join("/")}`);
     if (!res.ok) throw new GitHubError(res.status, `Could not load ${path} (${res.status})`);

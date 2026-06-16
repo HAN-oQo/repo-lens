@@ -597,6 +597,12 @@ export default function AskPanel(ctx: AskContext) {
               "키는 이 브라우저(localStorage)에만 저장됩니다. 기본 봇은 배포 사이트 origin만 허용하므로 localhost에서는 'your API key' 프로바이더를 선택하세요."
             )}
           </p>
+          <p className="ask-note" style={{ color: "var(--amber)" }}>
+            {t(
+              "Privacy: asking a question sends the file tree, README, and the open file's content to the selected provider/bot. For confidential code, use a provider you trust (the default bot is the company gateway).",
+              "주의: 질문 시 파일 트리·README·열린 파일 내용이 선택한 프로바이더/봇으로 전송됩니다. 기밀 코드는 신뢰하는 프로바이더를 쓰세요(기본 봇은 사내 게이트웨이)."
+            )}
+          </p>
         </div>
       )}
 
