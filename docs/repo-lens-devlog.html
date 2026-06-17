@@ -184,6 +184,20 @@
     <p>산출물: <code>deploy/k8s/repolens.yaml</code>(Deployment+Service+Ingress<b>(nginx)</b>+PVC+Secret, cert-manager·proxy-timeout 어노테이션, argocd App 예시), 수동 배포 런북 <code>docs/repo-lens-ce-deploy.html</code>(웹/CLI 단계·확인·트러블슈팅). 남은 값: 네임스페이스·레지스트리·ClusterIssuer 이름(ce-blog와 일치).</p>
   </div>
 
+  <div class="ent v2">
+    <div class="when">Day 2 · 정정 — 실제 CE 매니페스트 확인</div>
+    <h3>nginx-ingress 가정 폐기 → askbot 패턴</h3>
+    <p><span class="lab dec">CORRECTION</span> 추측으로 채우지 않으려고 <code>moreh-dev/ce-training/server/k8s</code>(실제 ce-blog·askbot 매니페스트)를 직접 읽음. 결과: 내 <b>nginx-ingress + cert-manager + 레지스트리 가정이 전부 틀림</b>.</p>
+    <ul>
+      <li>TLS는 클러스터 밖 <b>public edge(1.249.213.127)</b>에서 종료 → <b>cert-manager 불필요</b>.</li>
+      <li>공개는 <b>istio 공유 게이트웨이 <code>istio-system/public-gw</code> + HTTPRoute</b>(Gateway API) → <b>Ingress 불필요</b>.</li>
+      <li>커스텀 이미지를 <b>레지스트리에 푸시하지 않음</b>. askbot은 <b>노드 systemd 호스트 서비스</b>로 돌고, 클러스터엔 <i>selector-less Service + EndpointSlice → 노드 IP(192.168.2.20=ce-master)</i>.</li>
+      <li>askbot은 XHR 위젯이라 구글 oauth2-proxy를 안 씀 → <b>앱 자체 게이트(ACCESS_TOKEN+CORS)</b>.</li>
+    </ul>
+    <p><span class="lab dec">DECISION</span> Repo Lens는 정적 블로그가 아니라 <b>askbot과 같은 XHR + 자체 GitHub OAuth + <code>AUTH_REQUIRED</code></b> 앱 → <b>askbot 패턴 그대로</b>. 구글 게이트를 앞에 두면 <code>/api</code> XHR과 <code>/gh/callback</code>이 깨짐.</p>
+    <p>재작성: <code>deploy/k8s/repolens.yaml</code>(ns <code>repo-lens</code> + selector-less Svc + EndpointSlice + HTTPRoute, <code>X-Forwarded-Proto: https</code>·<code>timeouts 0s</code>), <code>deploy/repolens.service</code>(ce-askbot.service 미러), <code>deploy/k8s/apply.sh</code>, 런북 <code>docs/repo-lens-ce-deploy.html</code> 전면 개정. <b>placeholder 3개(NAMESPACE/REGISTRY/CLUSTER_ISSUER) 전부 해소</b> — 남은 호스트값은 노드 IP·DNS(엣지 와일드카드면 자동)뿐.</p>
+  </div>
+
 </div>
 
 <footer>Repo Lens build log · 계속 갱신됨 · HAN-oQo/repo-lens</footer>

@@ -1,0 +1,41 @@
+# repolens.service — Repo Lens v2 backend as a host systemd service on ce-master.
+# Copy to /etc/systemd/system/ on ce-master (same pattern as ce-askbot.service in
+# moreh-dev/ce-training).
+#
+# Runs the Docker image (built locally on the node — NO registry push needed; the
+# image bundles node + git + ripgrep + graphify). Listens on :8080 (host),
+# reachable in-cluster via the repolens-origin Service/EndpointSlice and exposed
+# publicly as https://repolens.ce.moreh.dev through the shared public-gw
+# (deploy/k8s/repolens.yaml). Gated by the app itself: GitHub login + AUTH_REQUIRED=1.
+#
+# Build the image once on the node:
+#   cd /srv/repolens/repo && scripts/repolens.sh image        # or:
+#   docker build -t repolens:latest \
+#     --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
+#     --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev .
+#
+# Secrets/config go in /srv/repolens/repolens.env (chmod 600, NOT in git) — see
+# .env.example for the keys (GH_CLIENT_ID/SECRET, ANTHROPIC_API_KEY or ASK_URL,
+# AUTH_REQUIRED=1, ALLOWED_REDIRECTS, CLONE_ALLOWED_HOSTS).
+[Unit]
+Description=Repo Lens v2 backend (clone + graphify + GraphRAG)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+# 0.0.0.0 so the cluster reaches it at the node IP (192.168.2.20:8080) via the
+# EndpointSlice. For a STRICT localhost-only posture instead (SSH-tunnel access,
+# no public route), bind 127.0.0.1:8080 below and do NOT apply the HTTPRoute.
+ExecStartPre=-/usr/bin/docker rm -f repolens
+ExecStart=/usr/bin/docker run --rm --name repolens \
+  -p 0.0.0.0:8080:8080 \
+  -v /srv/repolens/data:/data \
+  --env-file /srv/repolens/repolens.env \
+  repolens:latest
+ExecStop=/usr/bin/docker stop repolens
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

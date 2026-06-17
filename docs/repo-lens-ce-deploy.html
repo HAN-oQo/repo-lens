@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Repo Lens — CE 클러스터 수동 배포 가이드 (nginx)</title>
+<title>Repo Lens — CE 클러스터 수동 배포 가이드 (askbot 방식)</title>
 <style>
   :root{
     --bg:#faf9f5;--card:#fff;--ink:#1f1e1b;--muted:#6b6a63;--faint:#8a8f98;--line:#e3e1d8;
@@ -37,6 +37,7 @@
   .web{display:inline-block;font-size:11px;font-weight:700;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);border-radius:4px;padding:1px 7px;margin-right:6px}
   .cli{display:inline-block;font-size:11px;font-weight:700;background:#eee9dd;color:#5a4a1a;border:1px solid var(--amber-bd);border-radius:4px;padding:1px 7px;margin-right:6px}
   ol{padding-left:22px} ol li{margin:6px 0}
+  .diagram{white-space:pre;font:12px/1.5 var(--mono);background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:16px;overflow-x:auto;margin:12px 0}
   footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
 </style>
 </head>
@@ -44,91 +45,129 @@
 <div class="wrap">
 <header class="head">
   <span class="tag">Runbook</span>
-  <h1>Repo Lens — CE 클러스터 수동 배포 (nginx)</h1>
-  <p class="sub">ce-blog와 같은 방식으로 <code>repolens.ce.moreh.dev</code>에 배포. 본인 인프라(무료) · 로그인 게이트 · 읽기 전용.</p>
-  <p class="meta">ingress: nginx · manifest: deploy/k8s/repolens.yaml · 작성 2026-06-17</p>
+  <h1>Repo Lens — CE 클러스터 수동 배포</h1>
+  <p class="sub"><b>askbot과 동일한 방식</b>으로 <code>repolens.ce.moreh.dev</code> 공개. 본인 인프라(무료) · GitHub 로그인 게이트 · 읽기 전용.</p>
+  <p class="meta">패턴: 호스트 systemd 서비스 + istio HTTPRoute · 근거: moreh-dev/ce-training server/k8s · 갱신 2026-06-17</p>
 </header>
 
-<p><span class="web">웹</span> = 브라우저 클릭 작업 · <span class="cli">CLI</span> = 터미널 명령. <span class="ph">«…»</span> 는 본인 값으로 치환.</p>
+<p><span class="web">웹</span> = 브라우저 클릭 · <span class="cli">CLI</span> = 터미널(ce-master에서). <span class="ph">«…»</span> 는 본인 값.</p>
 
-<div class="note">왜 안전한가: 호스트는 닿을 수 있어도 <b>AUTH_REQUIRED=1</b> 이라 GitHub 로그인한 사용자만 API를 씁니다. 게다가 코드 <b>읽기 전용</b> 뷰어이고, GitHub 토큰은 브라우저에만, clone은 <code>github.com</code>만 허용합니다.</div>
+<div class="note"><b>왜 이 모양인가:</b> ce-blog의 정적 사이트는 구글 oauth2-proxy 뒤에 있지만, Repo Lens는 askbot처럼 <b>XHR(<code>/api/*</code>) + 자체 GitHub OAuth(<code>/gh/*</code>)</b> 앱입니다. 구글 인터랙티브 게이트를 앞에 두면 XHR과 콜백이 깨집니다. 그래서 <b>askbot과 똑같이</b> — 호스트 서비스 + selector-less Service/EndpointSlice + 공유 게이트웨이 HTTPRoute로 공개하고, 게이팅은 <b>앱 자체</b>(GitHub 로그인 + <code>AUTH_REQUIRED=1</code>)가 합니다. 그래서 <b>레지스트리·cert-manager·ingress가 필요 없습니다</b>(TLS는 엣지에서 종료).</div>
+
+<div class="diagram">public edge 1.249.213.127      ← *.ce.moreh.dev TLS 종료 (SRE 관리, 기존)
+  │  http (Host: repolens.ce.moreh.dev)
+  ▼
+istio public-gw :80            ← istio-system/public-gw (공유 Gateway API)
+  │  HTTPRoute repolens  (X-Forwarded-Proto: https 강제, request timeout 0s)
+  ▼
+repolens-origin Service(selector 없음) ─► EndpointSlice ─► ce-master 192.168.2.20:8080
+                                                            └─ 호스트 systemd 서비스
+                                                               (deploy/repolens.service)
+                                                               clone · ripgrep · graphify · GraphRAG
+앱 자체 게이트: GitHub 로그인 + AUTH_REQUIRED=1  (askbot의 ACCESS_TOKEN+CORS에 해당)</div>
 
 <h2><span class="num">0</span> 준비물 (한 번만)</h2>
 <table>
   <tr><th>항목</th><th>내용</th></tr>
-  <tr><td><span class="web">웹</span> DNS</td><td>Cloudflare(moreh.dev)에 <code>repolens.ce.moreh.dev</code> → CE 엣지 (askbot과 동일하게 A 또는 CNAME)</td></tr>
-  <tr><td><span class="web">웹</span> OAuth App</td><td>GitHub → Settings → Developer settings → OAuth Apps → New<br>Homepage <code>https://repolens.ce.moreh.dev</code> · Callback <code>https://repolens.ce.moreh.dev/gh/callback</code> → Client ID/secret 확보</td></tr>
-  <tr><td><span class="cli">CLI</span> 도구</td><td><code>docker</code>, <code>kubectl</code>(클러스터 컨텍스트), 이미지 푸시할 <span class="ph">«REGISTRY»</span></td></tr>
-  <tr><td>클러스터</td><td>ingress-nginx + cert-manager(ce-blog가 쓰는 ClusterIssuer 이름 = <span class="ph">«CLUSTER_ISSUER»</span>) 이미 동작 중</td></tr>
+  <tr><td><span class="web">웹</span> DNS</td><td><code>repolens.ce.moreh.dev</code> 가 CE 엣지(<code>1.249.213.127</code>)로 가야 함. <code>*.ce.moreh.dev</code> 와일드카드가 엣지에 이미 있으면(ce-blog·askbot이 그렇게 동작) <b>추가 작업 불필요</b>. 없으면 SRE에 서브도메인 요청.</td></tr>
+  <tr><td><span class="web">웹</span> GitHub OAuth App</td><td>GitHub → Settings → Developer settings → OAuth Apps → New.<br>Homepage <code>https://repolens.ce.moreh.dev</code> · Callback <code>https://repolens.ce.moreh.dev/gh/callback</code> (정확히 일치, 끝 슬래시 X) → Client ID/secret 확보. <i>aiandlabs(SSO) 사설 레포</i>를 볼 거면 org에서 이 App을 한 번 Authorize.</td></tr>
+  <tr><td><span class="cli">CLI</span> 노드 도구</td><td>ce-master에 <code>docker</code> + 노드 admin kubeconfig(<code>/etc/kubernetes/admin.conf</code>). <b>레지스트리·cert-manager 불필요.</b></td></tr>
+  <tr><td><span class="cli">CLI</span> 코드</td><td>레포를 노드에 두기: <code>git clone https://github.com/HAN-oQo/repo-lens /srv/repolens/repo</code></td></tr>
 </table>
 
-<h2><span class="num">1</span> 이미지 빌드 &amp; 푸시 <span class="cli">CLI</span></h2>
-<p><code>NEXT_PUBLIC_*</code> 는 <b>빌드 시점에 박힙니다</b> → 호스트명을 build-arg로 전달.</p>
-<pre><code>cd /path/to/repo-lens
-docker build \
+<h2><span class="num">1</span> 호스트 서비스 띄우기 (실제 배포) <span class="cli">CLI</span></h2>
+<p>ce-master에서 이미지를 <b>로컬 빌드</b>(푸시 없음)하고 systemd로 상시 실행. askbot의 <code>ce-askbot.service</code>와 같은 방식입니다.</p>
+<pre><code><span class="cmt"># 0) 디렉토리 + 코드</span>
+sudo mkdir -p /srv/repolens/data && sudo chown -R $USER /srv/repolens
+git clone https://github.com/HAN-oQo/repo-lens /srv/repolens/repo
+cd /srv/repolens/repo
+
+<span class="cmt"># 1) 이미지 로컬 빌드 (호스트명이 빌드 시점에 박힘 → build-arg)</span>
+docker build -t repolens:latest \
   --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
-  --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev \
-  -t «REGISTRY»/repolens:latest .
-docker push «REGISTRY»/repolens:latest</code></pre>
-<div class="note">빌드 머신 ≠ 클러스터 노드여도 됩니다. 멀티아키(예: arm 맥에서 빌드→amd64 노드)면 <code>docker buildx build --platform linux/amd64 …</code> 로.</div>
+  --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev .
+<span class="cmt"># (scripts/repolens.sh image 도 동일)</span>
 
-<h2><span class="num">2</span> 매니페스트 값 채우기 <span class="cli">CLI</span></h2>
-<p><code>deploy/k8s/repolens.yaml</code> 의 <span class="ph">«…»</span> 를 ce-blog와 동일하게:</p>
-<table>
-  <tr><th>placeholder</th><th>값</th></tr>
-  <tr><td><code>«NAMESPACE»</code></td><td>ce-blog/askbot와 같은 네임스페이스</td></tr>
-  <tr><td><code>«REGISTRY»</code></td><td>1번에서 푸시한 이미지 경로</td></tr>
-  <tr><td><code>«CLUSTER_ISSUER»</code></td><td>cert-manager ClusterIssuer 이름(예: <code>letsencrypt-prod</code>)</td></tr>
-  <tr><td>Secret 값</td><td>OAuth Client ID/secret, (선택) <code>ANTHROPIC_API_KEY</code></td></tr>
-</table>
-<p>ingressClassName은 이미 <code>nginx</code>, 타임아웃/인증서 어노테이션도 세팅돼 있습니다. LLM은 기본 <code>ASK_URL=https://askbot.ce.moreh.dev/ask</code>(사내 게이트웨이) — Anthropic 직통을 쓰려면 Secret의 <code>ANTHROPIC_API_KEY</code>만 채우고 Deployment의 <code>ASK_URL</code> env를 지우면 됩니다.</p>
-<div class="warn">Secret에 실제 값을 넣은 파일은 <b>커밋하지 마세요</b>. 아래처럼 <code>kubectl</code>로 직접 만들거나 sealed-secrets 사용.</div>
-<pre><code><span class="cmt"># 시크릿만 따로 만드는 방법(매니페스트의 Secret 블록 대신)</span>
-kubectl -n «NAMESPACE» create secret generic repolens-secrets \
-  --from-literal=GH_CLIENT_ID=«id» \
-  --from-literal=GH_CLIENT_SECRET=«secret» \
-  --from-literal=ANTHROPIC_API_KEY=«key»   <span class="cmt"># ASK_URL만 쓸 거면 생략</span></code></pre>
+<span class="cmt"># 2) 환경파일 (chmod 600, git에 넣지 말 것) — .env.example 참고</span>
+cat > /srv/repolens/repolens.env &lt;&lt;'EOF'
+PORT=8080
+HOST=0.0.0.0
+DATA_DIR=/data
+AUTH_REQUIRED=1
+ALLOWED_REDIRECTS=https://repolens.ce.moreh.dev
+CLONE_ALLOWED_HOSTS=github.com
+GH_CLIENT_ID=«oauth client id»
+GH_CLIENT_SECRET=«oauth client secret»
+<span class="cmt"># LLM 둘 중 하나: 사내 게이트웨이 askbot 재사용 또는 Anthropic 직통</span>
+ASK_URL=https://askbot.ce.moreh.dev/ask
+<span class="cmt"># ANTHROPIC_API_KEY=«key»</span>
+EOF
+chmod 600 /srv/repolens/repolens.env
 
-<h2><span class="num">3</span> 적용 <span class="cli">CLI</span></h2>
-<pre><code>kubectl apply -f deploy/k8s/repolens.yaml
-kubectl -n «NAMESPACE» rollout status deploy/repolens</code></pre>
-<p>또는 gitops면 <code>deploy/k8s/README.md</code> 의 Argo CD Application 을 추가(자동 sync).</p>
+<span class="cmt"># 3) systemd 서비스 등록</span>
+sudo cp deploy/repolens.service /etc/systemd/system/
+sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now repolens
+journalctl -u repolens -f          <span class="cmt"># 기동 로그</span>
+curl -s localhost:8080/healthz     <span class="cmt"># → ok</span></code></pre>
+<div class="note"><b>엄격한 비공개(SSH 터널)만 원하면</b> 여기서 끝. <code>repolens.service</code> 의 바인드를 <code>127.0.0.1:8080</code> 으로 바꾸고 2번(HTTPRoute)을 적용하지 않으면 됩니다 — <code>ssh -L 8080:localhost:8080 ce-master</code> 로만 접근. 공개 게이트(아래 2번)는 선택입니다.</div>
 
-<h2><span class="num">4</span> 확인 <span class="cli">CLI</span> + <span class="web">웹</span></h2>
-<pre><code>kubectl -n «NAMESPACE» get pods -l app=repolens
-kubectl -n «NAMESPACE» get ingress repolens          <span class="cmt"># ADDRESS/HOSTS 확인</span>
-<span class="cmt"># 클러스터 내부 헬스</span>
-kubectl -n «NAMESPACE» port-forward deploy/repolens 8080:8080 &amp; curl -s localhost:8080/healthz   <span class="cmt"># → ok</span>
-<span class="cmt"># 인증서 발급 대기(cert-manager)</span>
-kubectl -n «NAMESPACE» get certificate repolens-tls</code></pre>
-<p><span class="web">웹</span> 인증서가 Ready 되면 <code>https://repolens.ce.moreh.dev</code> 열기 → <b>Sign in with GitHub</b> → 레포 Load → 트리·전문검색·심볼 그래프·GraphRAG.</p>
+<h2><span class="num">2</span> 공개 라우트 적용 <span class="cli">CLI</span></h2>
+<p>클러스터엔 <b>Service + EndpointSlice + HTTPRoute</b>만 — 워크로드는 호스트에 있습니다. (<code>deploy/k8s/repolens.yaml</code>)</p>
+<pre><code>cd /srv/repolens/repo
+deploy/k8s/apply.sh
+<span class="cmt"># 또는 직접:</span>
+export KUBECONFIG=/etc/kubernetes/admin.conf
+sudo -E kubectl apply -f deploy/k8s/repolens.yaml   <span class="cmt"># HTTPRoute가 마지막 = 공개되는 순간</span></code></pre>
+<div class="warn">매니페스트의 노드 IP는 <code>192.168.2.20</code>(askbot과 동일한 ce-master). 다르면 <code>kubectl get node -o wide</code> 로 확인 후 EndpointSlice의 <code>addresses</code> 수정.</div>
 
-<h2><span class="num">5</span> (선택) 공개 데모도 이 백엔드로 <span class="cli">CLI</span></h2>
-<p><code>han-oqo.github.io/repo-lens</code> 가 이 백엔드를 쓰게 하려면 repo 변수만:</p>
+<h2><span class="num">3</span> 확인 <span class="cli">CLI</span> + <span class="web">웹</span></h2>
+<pre><code><span class="cmt"># 호스트 로컬</span>
+curl -s localhost:8080/healthz                                   <span class="cmt"># → ok</span>
+<span class="cmt"># 라우트/엔드포인트</span>
+sudo -E kubectl -n repo-lens get httproute repolens
+sudo -E kubectl -n repo-lens get endpointslice repolens-origin-1 -o wide
+<span class="cmt"># 공개 경로 — 게이트웨이 통과 헬스</span>
+curl -s https://repolens.ce.moreh.dev/healthz                    <span class="cmt"># → ok</span>
+<span class="cmt"># 미인증 API는 차단(게이트 동작 확인)</span>
+curl -s -o /dev/null -w '%{http_code}\n' "https://repolens.ce.moreh.dev/api/status?repo=x"  <span class="cmt"># → 401</span></code></pre>
+<p><span class="web">웹</span> <code>https://repolens.ce.moreh.dev</code> 열기 → <b>Sign in with GitHub</b> → 레포 Load → 트리·전문검색·심볼 그래프·GraphRAG.</p>
+
+<h2><span class="num">4</span> (선택) 공개 데모도 이 백엔드로 <span class="cli">CLI</span></h2>
+<p><code>han-oqo.github.io/repo-lens</code> 가 이 백엔드를 쓰게 하려면 repo 변수만 설정(설정 전엔 브라우저 전용 v1 유지):</p>
 <pre><code>gh auth switch --user HAN-oQo
 gh variable set REPOLENS_API_BASE   --repo HAN-oQo/repo-lens --body https://repolens.ce.moreh.dev
 gh variable set REPOLENS_OAUTH_BASE --repo HAN-oQo/repo-lens --body https://repolens.ce.moreh.dev
-gh workflow run "Deploy to GitHub Pages" --repo HAN-oQo/repo-lens
+gh workflow run pages.yml --repo HAN-oQo/repo-lens
 gh auth switch --user hanq-moreh</code></pre>
-<p>그리고 OAuth App 콜백/ALLOWED_REDIRECTS에 <code>https://han-oqo.github.io/repo-lens</code> 도 추가하면 공개 데모에서 로그인→v2 동작.</p>
+<p>그리고 OAuth App 콜백에 <code>https://repolens.ce.moreh.dev/gh/callback</code> 가 이미 있으니, <code>ALLOWED_REDIRECTS</code>에 <code>https://han-oqo.github.io</code> 도 추가하면 공개 데모 로그인 → v2 동작.</p>
 
-<h2><span class="num">6</span> 업데이트 · 롤백 <span class="cli">CLI</span></h2>
-<pre><code><span class="cmt"># 새 코드 → 이미지 다시 빌드/푸시 후</span>
-kubectl -n «NAMESPACE» rollout restart deploy/repolens
-kubectl -n «NAMESPACE» rollout undo deploy/repolens     <span class="cmt"># 롤백</span></code></pre>
+<h2><span class="num">5</span> 업데이트 · 롤백 <span class="cli">CLI</span></h2>
+<pre><code><span class="cmt"># 새 코드 반영: 노드에서 pull → 재빌드 → 재시작</span>
+cd /srv/repolens/repo &amp;&amp; git pull
+docker build -t repolens:latest \
+  --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
+  --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev .
+sudo systemctl restart repolens
 
-<h2><span class="num">7</span> 트러블슈팅</h2>
+<span class="cmt"># 공개만 내리기(서비스는 유지): 라우트 제거 → 즉시 비공개</span>
+sudo -E kubectl -n repo-lens delete httproute repolens
+<span class="cmt"># 완전 철거</span>
+sudo -E kubectl delete -f deploy/k8s/repolens.yaml
+sudo systemctl disable --now repolens</code></pre>
+
+<h2><span class="num">6</span> 트러블슈팅</h2>
 <table>
   <tr><th>증상</th><th>원인 / 해결</th></tr>
-  <tr><td>Pod <code>ImagePullBackOff</code></td><td>레지스트리 접근 — imagePullSecret 필요 시 Deployment에 추가, 이미지 경로/플랫폼(amd64) 확인</td></tr>
-  <tr><td>인그레스 404/503</td><td>DNS가 CE 엣지를 가리키는지, ingressClass <code>nginx</code> 일치, Service/Pod Ready 확인</td></tr>
-  <tr><td>인증서 Pending</td><td>ClusterIssuer 이름 오타, DNS 전파 대기(HTTP-01이면 80 도달 필요)</td></tr>
-  <tr><td>로그인 후 401 반복</td><td>OAuth 콜백 URL ≠ <code>https://repolens.ce.moreh.dev/gh/callback</code>, 또는 <code>ALLOWED_REDIRECTS</code> 불일치</td></tr>
-  <tr><td>private aiandlabs 레포 404</td><td>OAuth App을 org(SSO)에서 Authorize 안 함 → org 설정에서 승인</td></tr>
-  <tr><td>Ask가 "No LLM configured"</td><td><code>ANTHROPIC_API_KEY</code> 또는 <code>ASK_URL</code> 미설정 / askbot이 클러스터에서 미도달</td></tr>
+  <tr><td>공개 URL 404 / 응답 없음</td><td>HTTPRoute가 <code>public-gw</code> 에 attach 됐는지(<code>kubectl -n repo-lens describe httproute repolens</code> → Parents의 <code>Accepted=True</code>). 게이트웨이가 네임스페이스를 라벨로 제한하면 <code>repo-lens</code> ns에 동일 라벨 추가. 호스트명·DNS(엣지) 확인.</td></tr>
+  <tr><td>502 / endpoint not ready</td><td>호스트 서비스가 떠 있나(<code>systemctl status repolens</code>, <code>curl localhost:8080/healthz</code>). EndpointSlice의 노드 IP가 맞나(<code>kubectl get node -o wide</code>).</td></tr>
+  <tr><td>로그인 후 http로 리다이렉트/쿠키 문제</td><td>HTTPRoute의 <code>X-Forwarded-Proto: https</code> 필터 적용 확인(엣지에서 TLS 종료되므로 필수). 콜백 URL이 <code>https://repolens.ce.moreh.dev/gh/callback</code> 와 정확히 일치하는지.</td></tr>
+  <tr><td>로그인 후 401 반복</td><td><code>ALLOWED_REDIRECTS</code> ≠ 실제 오리진, 또는 OAuth Client ID/secret 오타. <code>journalctl -u repolens</code> 확인.</td></tr>
+  <tr><td>private aiandlabs 레포 404</td><td>OAuth App을 org(SSO)에서 Authorize 안 함 → org 설정에서 승인.</td></tr>
+  <tr><td>Ask가 느리다 504</td><td>HTTPRoute <code>timeouts.request: "0s"</code> 적용 확인(LLM 호출이 게이트웨이 기본 타임아웃을 넘김).</td></tr>
+  <tr><td>Ask "No LLM configured"</td><td><code>repolens.env</code> 의 <code>ASK_URL</code> 또는 <code>ANTHROPIC_API_KEY</code> 설정. askbot 재사용 시 클러스터에서 <code>askbot.ce.moreh.dev</code> 도달 가능한지.</td></tr>
 </table>
 
-<footer>Repo Lens · CE 배포 런북 · deploy/k8s/repolens.yaml · HAN-oQo/repo-lens</footer>
+<footer>Repo Lens · CE 배포 런북 (askbot 방식) · deploy/k8s/repolens.yaml + deploy/repolens.service · HAN-oQo/repo-lens</footer>
 </div>
 </body>
 </html>

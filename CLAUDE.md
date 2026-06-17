@@ -18,12 +18,15 @@ import **knowledge graph** (center), AI **Ask** panel grounded in the repo (righ
 backend is configured. Frontend resolves the backend from `NEXT_PUBLIC_API_BASE` (build)
 or `localStorage["repolens-api-base"]` (override). Public demo flips to v2 when the repo
 variables `REPOLENS_API_BASE`/`REPOLENS_OAUTH_BASE` point at a login-gated backend
-(`AUTH_REQUIRED=1`, isolated host — see `fly.toml`).
+(`AUTH_REQUIRED=1`) — the CE host below, or a throwaway host (`fly.toml`).
 
 ## Two deploy targets
 1. **Public demo → GitHub Pages** at `https://han-oqo.github.io/repo-lens` (repo `HAN-oQo/repo-lens`).
    Auto-deploys on push to `main` via `.github/workflows/pages.yml`. basePath `/repo-lens`. No private-repo OAuth here (PAT only).
-2. **Internal tool → CE-master CPU node, localhost-only** (Docker, reached via SSH tunnel; NEVER public — see [[ce-deploy-preference]]). This is the **v2 analysis backend**: `server/` clones the repo, serves the app + OAuth, builds a **graphify** symbol graph, does **ripgrep full-text search**, and answers via **GraphRAG**. Frontend uses it when `NEXT_PUBLIC_API_BASE` is set (else v1 browser fallback). Full guide in `DEPLOY.md`.
+2. **Internal tool → CE-master CPU node** — the **v2 analysis backend**: `server/` clones the repo, serves the app + OAuth, builds a **graphify** symbol graph, does **ripgrep full-text search**, answers via **GraphRAG**. Frontend uses it when `NEXT_PUBLIC_API_BASE` is set (else v1 browser fallback). Two postures:
+   - **Strict private (default per [[ce-deploy-preference]]):** bind `127.0.0.1:8080`, reach via SSH tunnel, no public route.
+   - **Public, login-gated (askbot pattern):** host systemd service (`deploy/repolens.service`) + Gateway API HTTPRoute on the shared `istio-system/public-gw` (`deploy/k8s/repolens.yaml`) → `repolens.ce.moreh.dev`. No registry/cert-manager/Ingress (TLS at the edge); self-gated by GitHub login + `AUTH_REQUIRED=1`, exactly like ce-training's askbot. Runbook: `docs/repo-lens-ce-deploy.html`.
+   Full guide in `DEPLOY.md`.
 
 ### v2 backend map
 - `server/server.mjs` mounts `/api/*` (`api.mjs`) + serves `./out` + `/gh/*` OAuth.
@@ -52,6 +55,14 @@ scripts/repolens.sh run       # -p 127.0.0.1:8080:8080 -v repolens-data:/data (l
 ```
 Native (no Docker): needs `git`, `ripgrep`, `uv tool install graphifyy`, then
 `scripts/repolens.sh build-ce && scripts/repolens.sh serve`. Full guide: `DEPLOY.md`.
+
+**Public on CE (askbot pattern, optional):** build image on the node with
+`--build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev` (+ `_OAUTH_BASE`),
+fill `/srv/repolens/repolens.env` (incl. `AUTH_REQUIRED=1`), `sudo cp
+deploy/repolens.service /etc/systemd/system/ && systemctl enable --now repolens`,
+then `deploy/k8s/apply.sh` (Service + EndpointSlice → node IP `192.168.2.20:8080` +
+HTTPRoute on `istio-system/public-gw`). Take down public access without stopping the
+server: `kubectl -n repo-lens delete httproute repolens`. Runbook: `docs/repo-lens-ce-deploy.html`.
 
 ## Before every deploy (security — keep this up)
 - `scripts/repolens.sh audit` (or `/security-review`). See `SECURITY.md`.

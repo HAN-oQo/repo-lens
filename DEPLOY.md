@@ -46,22 +46,35 @@ ssh -L 8080:localhost:8080 <ce-master>     # from your laptop
 Tree/README/search/files are instant; the graph builds in the background; Ask uses
 GraphRAG once you've signed in (the token is forwarded for cloning private repos).
 
-## Public login-gated demo (isolated host)
+## Public, login-gated on the CE cluster (askbot pattern)
 
-To make the **public** demo (`han-oqo.github.io/repo-lens`) run v2 for signed-in users,
-run the backend on a throwaway host **separate from CE** (so it can't affect internal
-infra), with `AUTH_REQUIRED=1` (every `/api` call needs a valid GitHub login) + rate
-limiting. See `fly.toml`:
+If you want a stable public host (`repolens.ce.moreh.dev`) instead of an SSH tunnel,
+deploy it the **same way moreh-dev/ce-training runs askbot**: the server is a host
+systemd service on ce-master, exposed through the shared istio gateway with a
+Gateway API **HTTPRoute** — no registry, no cert-manager, no Ingress (TLS terminates
+at the edge). It stays safe because the app self-gates (GitHub login +
+`AUTH_REQUIRED=1`), exactly like askbot's `ACCESS_TOKEN`+CORS.
+
+Files: `deploy/repolens.service` (host unit), `deploy/k8s/repolens.yaml`
+(Service + EndpointSlice → node IP + HTTPRoute on `istio-system/public-gw`),
+`deploy/k8s/apply.sh`. Full step-by-step: **`docs/repo-lens-ce-deploy.html`**.
+
 ```bash
-fly launch --no-deploy --name repolens-demo
-fly secrets set GH_CLIENT_ID=… GH_CLIENT_SECRET=… ANTHROPIC_API_KEY=…   # or ASK_URL=…
-fly volumes create repolens_data --size 3 && fly deploy
-# flip the public demo to v2:
-gh variable set REPOLENS_API_BASE  --body https://repolens-demo.fly.dev
-gh variable set REPOLENS_OAUTH_BASE --body https://repolens-demo.fly.dev
-# (use a SEPARATE OAuth App; callback https://repolens-demo.fly.dev/gh/callback)
+# on ce-master
+git clone https://github.com/HAN-oQo/repo-lens /srv/repolens/repo && cd /srv/repolens/repo
+docker build -t repolens:latest \
+  --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
+  --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev .
+# fill /srv/repolens/repolens.env (GH_CLIENT_ID/SECRET, AUTH_REQUIRED=1, ASK_URL or ANTHROPIC_API_KEY)
+sudo cp deploy/repolens.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now repolens
+deploy/k8s/apply.sh                       # public route on the shared gateway
+# flip the public Pages demo to this backend:
+gh variable set REPOLENS_API_BASE   --repo HAN-oQo/repo-lens --body https://repolens.ce.moreh.dev
+gh variable set REPOLENS_OAUTH_BASE --repo HAN-oQo/repo-lens --body https://repolens.ce.moreh.dev
 ```
-Until those repo variables are set, the public demo stays browser-only (v1).
+Until those repo variables are set, the public Pages demo stays browser-only (v1).
+(`fly.toml` remains as an alternative throwaway-host option, but the CE path is free.)
 
 ## Notes
 - Data (clones + graphify caches) lives in the `repolens-data` volume → fast repeat loads.

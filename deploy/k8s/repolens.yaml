@@ -1,108 +1,113 @@
-# Repo Lens on the CE cluster (like ce-blog). Adapt the «PLACEHOLDERS» to match
-# your existing services (ingress class, TLS issuer, namespace, image registry).
+# Repo Lens on the CE cluster — the askbot pattern (NOT nginx-ingress).
 #
-# Build & push the image first (NEXT_PUBLIC_* baked at build time):
-#   docker build \
-#     --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
-#     --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev \
-#     -t «REGISTRY»/repolens:latest .
-#   docker push «REGISTRY»/repolens:latest
+# Repo Lens is an XHR app with its OWN GitHub login (/gh/*) + AUTH_REQUIRED gate,
+# exactly like askbot (a widget that self-gates). So it does NOT sit behind the
+# blog's interactive Google oauth2-proxy — that would break /api XHR and the
+# /gh/callback flow. Instead, same shape as server/k8s/40-askbot.yaml in
+# moreh-dev/ce-training:
 #
-# Create the secret (do NOT commit real values), then `kubectl apply -f repolens.yaml`.
+#   public edge 1.249.213.127  ── terminates TLS for *.ce.moreh.dev (SRE-managed)
+#     │ http (Host: repolens.ce.moreh.dev)
+#     ▼
+#   istio public-gw :80        ── istio-system/public-gw (shared Gateway API gw)
+#     │ HTTPRoute repolens (forces X-Forwarded-Proto: https, no request timeout)
+#     ▼
+#   repolens-origin Service (selector-less) ─► EndpointSlice ─► ce-master 192.168.2.20:8080
+#                                                                └─ the host systemd service
+#                                                                   (deploy/repolens.service)
+#
+# So there is NO Deployment / image registry / cert-manager / TLS Secret here:
+# the workload runs on the host (see deploy/repolens.service + DEPLOY.md), TLS is
+# terminated at the edge, and the cluster only needs Service + EndpointSlice +
+# HTTPRoute. Gating is in the app (GitHub login + AUTH_REQUIRED=1).
+#
+# Apply on ce-master:  deploy/k8s/apply.sh   (or the kubectl block in the README)
 ---
 apiVersion: v1
-kind: PersistentVolumeClaim
+kind: Namespace
 metadata:
-  name: repolens-data
-  namespace: «NAMESPACE»          # e.g. the same ns as ce-blog/askbot
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 5Gi
+  name: repo-lens
+  labels:
+    app.kubernetes.io/part-of: repo-lens
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repolens-secrets
-  namespace: «NAMESPACE»
-type: Opaque
-stringData:
-  GH_CLIENT_ID: "«oauth app client id»"
-  GH_CLIENT_SECRET: "«oauth app client secret»"
-  ANTHROPIC_API_KEY: "«anthropic key»"   # OR remove and set ASK_URL in the Deployment env
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: repolens
-  namespace: «NAMESPACE»
-  labels: { app: repolens }
-spec:
-  replicas: 1
-  selector: { matchLabels: { app: repolens } }
-  template:
-    metadata:
-      labels: { app: repolens }
-    spec:
-      containers:
-        - name: repolens
-          image: «REGISTRY»/repolens:latest
-          ports: [{ containerPort: 8080 }]
-          env:
-            - { name: PORT, value: "8080" }
-            - { name: DATA_DIR, value: "/data" }
-            - { name: AUTH_REQUIRED, value: "1" }            # login-gated (public host)
-            - { name: ALLOWED_REDIRECTS, value: "https://repolens.ce.moreh.dev" }
-            - { name: CLONE_ALLOWED_HOSTS, value: "github.com" }
-            - { name: ASK_URL, value: "https://askbot.ce.moreh.dev/ask" }  # or use ANTHROPIC_API_KEY from the secret
-          envFrom:
-            - secretRef: { name: repolens-secrets }
-          volumeMounts:
-            - { name: data, mountPath: /data }
-          readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
-            initialDelaySeconds: 5
-          livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
-            initialDelaySeconds: 15
-          resources:
-            requests: { cpu: "250m", memory: "512Mi" }
-            limits: { cpu: "2", memory: "2Gi" }
-      volumes:
-        - name: data
-          persistentVolumeClaim: { claimName: repolens-data }
----
+# Selector-less Service + EndpointSlice → the host service on the ce-master node.
+# 192.168.2.20 is the ce-master node IP (same endpoint askbot uses). If the node
+# IP differs, check `kubectl get node -o wide` and update the address below.
 apiVersion: v1
 kind: Service
 metadata:
-  name: repolens
-  namespace: «NAMESPACE»
+  name: repolens-origin
+  namespace: repo-lens
+  labels:
+    app.kubernetes.io/part-of: repo-lens
 spec:
-  selector: { app: repolens }
-  ports: [{ port: 80, targetPort: 8080 }]
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: repolens-origin-1
+  namespace: repo-lens
+  labels:
+    kubernetes.io/service-name: repolens-origin
+    app.kubernetes.io/part-of: repo-lens
+addressType: IPv4
+ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 192.168.2.20      # ce-master node IP (same as askbot-origin)
+    conditions:
+      ready: true
+---
+# Public route: repolens.ce.moreh.dev -> repolens-origin (the host service).
+# Attaches to the shared istio public gateway (istio-system/public-gw, :80 HTTP),
+# cross-namespace exactly like ce-blog's own route does.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: repolens
-  namespace: «NAMESPACE»
-  annotations:
-    cert-manager.io/cluster-issuer: "«CLUSTER_ISSUER»"   # match ce-blog, e.g. letsencrypt-prod
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"   # /api/ask LLM calls can be slow
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+  namespace: repo-lens
+  labels:
+    app.kubernetes.io/part-of: repo-lens
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts: ["repolens.ce.moreh.dev"]
-      secretName: repolens-tls
+  hostnames:
+    - repolens.ce.moreh.dev
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public-gw
+      namespace: istio-system
+      sectionName: http
   rules:
-    - host: repolens.ce.moreh.dev
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: repolens
-                port: { number: 80 }
+    # TLS is terminated at the edge upstream of the cluster, which forwards plain
+    # HTTP here. Force X-Forwarded-Proto=https so the OAuth flow issues https
+    # redirects (callback https://repolens.ce.moreh.dev/gh/callback) and the app
+    # builds https URLs — same reason the blog route sets it.
+    - filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Forwarded-Proto
+                value: https
+      # GraphRAG /api/ask (clone + graphify + LLM) can take a while; the gateway's
+      # default ~15s timeout would 504 it. Disable per-request timeouts like askbot.
+      timeouts:
+        request: "0s"
+        backendRequest: "0s"
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: repolens-origin
+          port: 8080
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
