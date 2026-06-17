@@ -1,11 +1,19 @@
 # ✦ Repo Lens
 
 Paste a GitHub link and read, search, and understand any repository in a VSCode-like
-UI — file tree, code, README, an **import dependency graph**, and an **AI panel**
-that answers questions grounded in the repo. 100% client-side, deployed as a static
-site on GitHub Pages.
+UI — file tree, code, README, a **symbol knowledge graph**, full-text **search**, and
+an **AI panel** that answers questions grounded in the repo.
 
-**Live:** https://han-oqo.github.io/repo-lens
+**The default is v2** — a server-side analysis backend (`server/`) that clones the
+repo once, builds a `graphify` symbol graph, indexes it for ripgrep search, and answers
+with **GraphRAG**. The browser-only path (v1, `lib/github.ts`) is the **fallback** used
+only when no backend is configured.
+
+- **Public demo:** https://han-oqo.github.io/repo-lens — browser-only until the repo
+  variables `REPOLENS_API_BASE`/`REPOLENS_OAUTH_BASE` point it at a public, **login-gated**
+  backend (see `fly.toml`), after which the demo runs v2 for any signed-in user.
+- **Internal:** the same backend on the CE-master node, localhost-only via SSH tunnel
+  (`DEPLOY.md`).
 
 ## What it does
 

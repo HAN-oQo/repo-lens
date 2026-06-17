@@ -3,7 +3,17 @@
 import { GH_TOKEN_LS } from "./github";
 import type { RepoRef, TreeEntry } from "./types";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
+export const API_BASE_LS = "repolens-api-base";
+// Build-time default (baked for the public demo via CI) with an optional
+// per-browser override (point the app at your own node, e.g. http://localhost:8080).
+function resolveBase(): string {
+  let v = process.env.NEXT_PUBLIC_API_BASE || "";
+  try {
+    if (typeof window !== "undefined") v = (localStorage.getItem(API_BASE_LS) || v);
+  } catch {}
+  return v.replace(/\/+$/, "");
+}
+export const API_BASE = resolveBase();
 export const hasBackend = !!API_BASE;
 
 function token(): string {

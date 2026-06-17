@@ -46,6 +46,23 @@ ssh -L 8080:localhost:8080 <ce-master>     # from your laptop
 Tree/README/search/files are instant; the graph builds in the background; Ask uses
 GraphRAG once you've signed in (the token is forwarded for cloning private repos).
 
+## Public login-gated demo (isolated host)
+
+To make the **public** demo (`han-oqo.github.io/repo-lens`) run v2 for signed-in users,
+run the backend on a throwaway host **separate from CE** (so it can't affect internal
+infra), with `AUTH_REQUIRED=1` (every `/api` call needs a valid GitHub login) + rate
+limiting. See `fly.toml`:
+```bash
+fly launch --no-deploy --name repolens-demo
+fly secrets set GH_CLIENT_ID=… GH_CLIENT_SECRET=… ANTHROPIC_API_KEY=…   # or ASK_URL=…
+fly volumes create repolens_data --size 3 && fly deploy
+# flip the public demo to v2:
+gh variable set REPOLENS_API_BASE  --body https://repolens-demo.fly.dev
+gh variable set REPOLENS_OAUTH_BASE --body https://repolens-demo.fly.dev
+# (use a SEPARATE OAuth App; callback https://repolens-demo.fly.dev/gh/callback)
+```
+Until those repo variables are set, the public demo stays browser-only (v1).
+
 ## Notes
 - Data (clones + graphify caches) lives in the `repolens-data` volume → fast repeat loads.
 - LLM: set `ANTHROPIC_API_KEY` (direct) **or** `ASK_URL` (your askbot gateway) in `.env`.

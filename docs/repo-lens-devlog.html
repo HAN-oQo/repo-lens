@@ -165,6 +165,18 @@
     <p>Dockerfile를 node+git+ripgrep+<code>graphifyy</code>(bookworm)로, <code>127.0.0.1:8080</code> 바인딩 + <code>/data</code> 볼륨. <code>scripts/repolens.sh</code>·<code>.env.example</code>·<code>DEPLOY.md</code>(SSH터널)·<code>SECURITY.md</code>(localhost·clone SSRF·토큰 env-only)·<code>CLAUDE.md</code> 런북 갱신. 이미지 빌드는 노드에서, 서버+graphify는 네이티브 검증 완료.</p>
   </div>
 
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 기본화</div>
+    <h3>v2를 기본으로 + 공개 데모 로그인-게이트</h3>
+    <p><span class="lab dec">DECISION</span> v2(백엔드)가 기본, v1(브라우저)은 폴백. 유저: 공개 데모에서도 v2 쓰고 싶음 → 단 공개 백엔드는 clone·토큰 다루는 서비스라 위험. 화해책: <b>CE/내부와 분리된 일회용 호스트(Fly)에 로그인-게이트(AUTH_REQUIRED)로</b> 띄움 → 터져도 내부 무영향.</p>
+    <ul class="notes">
+      <li>백엔드 <code>auth.mjs</code>: <code>AUTH_REQUIRED=1</code>이면 모든 <code>/api</code>에 유효 GitHub 토큰 필수(+토큰별 rate limit). 사내 노드는 미설정(단일 유저 신뢰).</li>
+      <li>프론트 API base 런타임 해석(빌드 기본값 + <code>localStorage</code> 오버라이드). Pages 워크플로우가 repo 변수 <code>REPOLENS_API_BASE/OAUTH_BASE</code>로 <b>공개 데모를 v2로 전환</b>(미설정 시 v1).</li>
+      <li><code>fly.toml</code>(격리 공개 호스트), 콜백은 별도 OAuth App.</li>
+    </ul>
+    <p><span class="lab ok">VERIFIED</span> <code>AUTH_REQUIRED=1</code>에서 무토큰 <code>/api/*</code> → 401, <code>/healthz</code> → 200, 빌드 통과.</p>
+  </div>
+
 </div>
 
 <footer>Repo Lens build log · 계속 갱신됨 · HAN-oQo/repo-lens</footer>

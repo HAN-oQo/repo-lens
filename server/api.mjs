@@ -6,6 +6,9 @@ import {
 import { search } from "./lib/search.mjs";
 import { graphState, getGraph, requestGraph } from "./lib/graph.mjs";
 import { ask as graphRagAsk } from "./lib/graphrag.mjs";
+import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
+
+const EXPENSIVE = new Set(["/api/repo", "/api/ask", "/api/graph"]);
 
 function readBody(req) {
   return new Promise((resolve) => {
@@ -35,6 +38,15 @@ const IMG_MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif:
 export async function handleApi(req, res, url) {
   const p = url.pathname;
   try {
+    // Login gate (public deployment): every API call needs a valid GitHub token.
+    if (AUTH_REQUIRED) {
+      const login = await validateUser(token(req));
+      if (!login) return json(res, 401, { error: "Sign in with GitHub to use this instance." });
+      if (EXPENSIVE.has(p) && !rateLimit(login, 40, 60000)) {
+        return json(res, 429, { error: "Rate limit — slow down a moment." });
+      }
+    }
+
     // POST /api/repo {url, ref?}  → clone + tree + readme, kick off graph build
     if (p === "/api/repo" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)) || "{}");

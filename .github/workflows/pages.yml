@@ -24,7 +24,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci --legacy-peer-deps
+      # Set repo variables REPOLENS_API_BASE / REPOLENS_OAUTH_BASE to the public
+      # backend URL to make the public demo use v2 (login-gated). Unset → v1 browser.
       - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE: ${{ vars.REPOLENS_API_BASE }}
+          NEXT_PUBLIC_OAUTH_BASE: ${{ vars.REPOLENS_OAUTH_BASE }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out

@@ -14,6 +14,12 @@ import **knowledge graph** (center), AI **Ask** panel grounded in the repo (righ
 - `workers/github-oauth.worker.js` — same OAuth flow as a Cloudflare Worker (alternative to the Node server).
 - `scripts/repolens.sh` — one entrypoint for build/serve/image/run/audit.
 
+**v2 (backend) is the default experience; v1 (browser-only) is the fallback** when no
+backend is configured. Frontend resolves the backend from `NEXT_PUBLIC_API_BASE` (build)
+or `localStorage["repolens-api-base"]` (override). Public demo flips to v2 when the repo
+variables `REPOLENS_API_BASE`/`REPOLENS_OAUTH_BASE` point at a login-gated backend
+(`AUTH_REQUIRED=1`, isolated host — see `fly.toml`).
+
 ## Two deploy targets
 1. **Public demo → GitHub Pages** at `https://han-oqo.github.io/repo-lens` (repo `HAN-oQo/repo-lens`).
    Auto-deploys on push to `main` via `.github/workflows/pages.yml`. basePath `/repo-lens`. No private-repo OAuth here (PAT only).
