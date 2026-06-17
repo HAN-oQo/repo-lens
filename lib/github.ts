@@ -16,9 +16,11 @@ const RAW = "https://raw.githubusercontent.com";
 export const GH_TOKEN_LS = "repolens-gh-token";
 export const OAUTH_BASE_LS = "repolens-oauth-url";
 
-// Default "Sign in with GitHub" worker base. Edit this (or set it in ⚙) to your
-// deployed worker from workers/github-oauth.worker.js, e.g. https://repolens-auth.<you>.workers.dev
-export const DEFAULT_OAUTH_BASE = "";
+// "Sign in with GitHub" base URL (handles /gh/login + /gh/callback).
+// Baked at build time via NEXT_PUBLIC_OAUTH_BASE (e.g. https://repolens.ce.moreh.dev
+// for the self-hosted single-server deploy), or left empty and set in ⚙. When the
+// app and the OAuth routes share an origin (self-host), this equals window.location.origin.
+export const DEFAULT_OAUTH_BASE = process.env.NEXT_PUBLIC_OAUTH_BASE || "";
 
 export function getToken(): string {
   try {

@@ -2,12 +2,17 @@ import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
 
-// Deployed as a GitHub Pages project page at https://han-oqo.github.io/repo-lens
-// so we need basePath/assetPrefix in production. In dev (localhost:3000) keep them empty.
+// Two deploy targets:
+//  - GitHub Pages project page → basePath "/repo-lens" (the default in prod).
+//  - Self-hosted at a domain root (repolens.ce.moreh.dev) → set BASE_PATH="" so
+//    it serves from "/". BASE_PATH being *defined* (even empty) overrides the default.
+const basePath =
+  process.env.BASE_PATH !== undefined ? process.env.BASE_PATH : isProd ? "/repo-lens" : "";
+
 const nextConfig: NextConfig = {
   output: "export",
-  basePath: isProd ? "/repo-lens" : "",
-  assetPrefix: isProd ? "/repo-lens/" : "",
+  basePath: basePath || undefined,
+  assetPrefix: basePath ? basePath + "/" : undefined,
   images: { unoptimized: true },
 };
 

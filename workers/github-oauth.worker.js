@@ -46,7 +46,10 @@ function allowedRedirects(env) {
   return DEFAULT_ALLOWED_REDIRECTS;
 }
 function isAllowed(redirect, env) {
-  return allowedRedirects(env).some((p) => redirect === p || redirect.startsWith(p));
+  // Exact origin or a path *under* it — NOT a bare prefix. A bare prefix would let
+  // "https://app.example.com.evil.com" pass an "https://app.example.com" check and
+  // leak the OAuth token to an attacker's domain.
+  return allowedRedirects(env).some((p) => redirect === p || redirect.startsWith(p + "/"));
 }
 function randHex(n = 16) {
   const a = new Uint8Array(n);

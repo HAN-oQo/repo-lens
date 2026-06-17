@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Repo Lens — 아키텍처 &amp; 배포 보고서</title>
+<style>
+  :root{
+    --bg:#faf9f5; --card:#ffffff; --ink:#1f1e1b; --muted:#6b6a63; --faint:#8a8f98;
+    --line:#e3e1d8; --blue:#0c447c; --blue-bg:#e6f1fb; --blue-bd:#85b7eb;
+    --green:#27500a; --green-bg:#eaf3de; --green-bd:#97c459;
+    --amber:#6b4a06; --amber-bg:#fbf0d9; --amber-bd:#e6b54f;
+    --red:#6f2a12; --red-bg:#fce6dd; --red-bd:#ef9f86;
+    --purple:#3f1f72; --purple-bg:#f1e8fb; --code-bg:#1e2330; --code-ink:#e6e8ee;
+    --mono:"SF Mono",Menlo,Consolas,ui-monospace,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Pretendard",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:40px 22px 90px}
+  header.head{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:8px}
+  h1{font-size:30px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .meta{font:12px var(--mono);color:var(--faint);margin-top:12px;letter-spacing:.01em}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--blue-bd);background:var(--blue-bg);color:var(--blue);margin-right:6px}
+  nav.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:24px 0}
+  nav.toc b{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  nav.toc ol{margin:8px 0 0;padding-left:20px;columns:2;font-size:14px}
+  nav.toc a{color:var(--blue);text-decoration:none}
+  nav.toc a:hover{text-decoration:underline}
+  h2{font-size:21px;margin:46px 0 12px;padding-top:10px;border-top:1px solid var(--line)}
+  h2 .num{display:inline-block;min-width:30px;color:var(--green-bd);font-variant-numeric:tabular-nums}
+  h3{font-size:16px;margin:26px 0 8px}
+  p{margin:10px 0}
+  code{background:#eceef2;border-radius:5px;padding:1px 6px;font:.88em var(--mono);color:#b03a55}
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:15px 17px;overflow-x:auto;font:12.5px/1.55 var(--mono);margin:12px 0}
+  pre code{background:none;color:inherit;padding:0}
+  .cmt{color:#8a93a6}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--green-bg);color:var(--green)}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin:18px 0;text-align:center}
+  .fig figcaption{font-size:13px;color:var(--muted);margin-top:10px}
+  .callout{border-left:4px solid var(--amber-bd);background:var(--amber-bg);color:#4a3705;border-radius:0 8px 8px 0;padding:10px 14px;margin:14px 0;font-size:14px}
+  .callout.sec{border-color:var(--red-bd);background:var(--red-bg);color:#5a2410}
+  .callout.ok{border-color:var(--green-bd);background:var(--green-bg);color:#234a06}
+  svg{max-width:100%;height:auto}
+  .lgnd{font:11px var(--sans)}
+  footer{margin-top:60px;border-top:1px solid var(--line);padding-top:16px;color:var(--faint);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  .step{counter-reset:none}
+  ol.steps{padding-left:22px}
+  ol.steps li{margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="head">
+  <span class="tag">Code / Deep dive</span>
+  <h1>✦ Repo Lens — 아키텍처 &amp; 배포 보고서</h1>
+  <p class="sub">GitHub 링크를 받아 코드를 읽고·검색하고·흐름을 파악하는 VSCode형 웹앱. 토폴로지 · 배포 원리 · 재현 · 보안.</p>
+  <p class="meta">repo HAN-oQo/repo-lens · public demo han-oqo.github.io/repo-lens · internal repolens.ce.moreh.dev · 작성 2026-06-17</p>
+</header>
+
+<nav class="toc">
+  <b>목차</b>
+  <ol>
+    <li><a href="#what">무엇인가</a></li>
+    <li><a href="#topo">시스템 토폴로지</a></li>
+    <li><a href="#ce">ce.moreh.dev의 원리 (DNS)</a></li>
+    <li><a href="#oauth">로그인 흐름 (OAuth)</a></li>
+    <li><a href="#data">데이터 흐름 &amp; 레이트리밋</a></li>
+    <li><a href="#deploy-pages">배포 ① 공개 데모(Pages)</a></li>
+    <li><a href="#deploy-ce">배포 ② 사내(CE)</a></li>
+    <li><a href="#repro">처음부터 재현</a></li>
+    <li><a href="#sec">보안</a></li>
+  </ol>
+</nav>
+
+<!-- 1 -->
+<h2 id="what"><span class="num">1</span> 무엇인가</h2>
+<p>링크 하나를 넣으면 <b>왼쪽</b>에 디렉토리 트리, <b>가운데</b>에 README와 코드(Monaco = VSCode 에디터 본체)와 <b>놀리지 그래프</b>(파일 간 import 의존성), <b>오른쪽</b>에 레포에 grounding된 AI <b>Ask</b> 패널이 뜹니다. 백엔드는 기본적으로 없고(정적), 사내 배포에서만 로그인용 작은 서버 하나가 붙습니다.</p>
+<table>
+  <tr><th>영역</th><th>구현</th></tr>
+  <tr><td>파일 트리 / 코드 / README</td><td>GitHub git-tree(재귀 1콜) + <code>raw.githubusercontent.com</code>, Monaco, react-markdown</td></tr>
+  <tr><td>놀리지 그래프</td><td>JS/TS·Python import를 브라우저에서 정규식 추출·해석 → react-force-graph</td></tr>
+  <tr><td>AI Ask</td><td>블로그 <code>ask.js</code> 멀티프로바이더 이식(기본 askbot, 또는 BYO 키), 레포 컨텍스트로 grounding</td></tr>
+  <tr><td>private 레포</td><td>“Sign in with GitHub”(OAuth) 또는 토큰 붙여넣기 — 토큰은 브라우저 localStorage에만</td></tr>
+</table>
+
+<!-- 2 -->
+<h2 id="topo"><span class="num">2</span> 시스템 토폴로지</h2>
+<p>아래는 <b>사내 배포(repolens.ce.moreh.dev)</b> 기준 구성도입니다. 정적 앱과 OAuth 엔드포인트가 <b>같은 컨테이너·같은 origin</b>에 있고, 데이터(GitHub)와 AI(askbot)는 브라우저가 직접 호출합니다.</p>
+<figure class="fig">
+<svg viewBox="0 0 900 470" role="img" aria-label="Internal deployment topology">
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5a6577"/></marker>
+    <marker id="ahb" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#0c447c"/></marker>
+  </defs>
+  <!-- boxes -->
+  <g font-family="-apple-system,sans-serif">
+    <!-- browser -->
+    <rect x="340" y="18" width="220" height="56" rx="10" fill="#fff" stroke="#0c447c" stroke-width="1.5"/>
+    <text x="450" y="42" text-anchor="middle" font-size="14" font-weight="700">🧑 User browser</text>
+    <text x="450" y="60" text-anchor="middle" font-size="11.5" fill="#6b6a63">Repo Lens UI (VPN)</text>
+
+    <!-- cloudflare dns -->
+    <rect x="40" y="150" width="190" height="56" rx="10" fill="#f1e8fb" stroke="#bfa0eb"/>
+    <text x="135" y="174" text-anchor="middle" font-size="12.5" font-weight="700" fill="#3f1f72">Cloudflare DNS</text>
+    <text x="135" y="191" text-anchor="middle" font-size="11" fill="#3f1f72">moreh.dev zone</text>
+
+    <!-- CE ingress -->
+    <rect x="350" y="150" width="200" height="52" rx="10" fill="#eaf3de" stroke="#97c459"/>
+    <text x="450" y="171" text-anchor="middle" font-size="12.5" font-weight="700" fill="#27500a">CE ingress · TLS</text>
+    <text x="450" y="189" text-anchor="middle" font-size="11" fill="#27500a">repolens.ce.moreh.dev</text>
+
+    <!-- container -->
+    <rect x="330" y="250" width="240" height="116" rx="10" fill="#fff" stroke="#1f1e1b" stroke-width="1.5"/>
+    <text x="450" y="272" text-anchor="middle" font-size="12.5" font-weight="700">repo-lens container :8080</text>
+    <line x1="346" y1="282" x2="554" y2="282" stroke="#e3e1d8"/>
+    <text x="450" y="301" text-anchor="middle" font-size="11.5" fill="#1f1e1b">static ./out  (the app)</text>
+    <text x="450" y="320" text-anchor="middle" font-size="11.5" fill="#1f1e1b">/gh/login · /gh/callback</text>
+    <text x="450" y="337" text-anchor="middle" font-size="10.5" fill="#6f2a12">holds OAuth client_secret</text>
+
+    <!-- github data -->
+    <rect x="650" y="96" width="230" height="58" rx="10" fill="#e6f1fb" stroke="#85b7eb"/>
+    <text x="765" y="119" text-anchor="middle" font-size="12" font-weight="700" fill="#0c447c">api.github.com</text>
+    <text x="765" y="137" text-anchor="middle" font-size="11" fill="#0c447c">raw.githubusercontent.com</text>
+
+    <!-- askbot -->
+    <rect x="650" y="186" width="230" height="48" rx="10" fill="#e6f1fb" stroke="#85b7eb"/>
+    <text x="765" y="206" text-anchor="middle" font-size="12" font-weight="700" fill="#0c447c">askbot.ce.moreh.dev</text>
+    <text x="765" y="223" text-anchor="middle" font-size="11" fill="#0c447c">AI gateway</text>
+
+    <!-- github oauth -->
+    <rect x="650" y="300" width="230" height="58" rx="10" fill="#fbf0d9" stroke="#e6b54f"/>
+    <text x="765" y="323" text-anchor="middle" font-size="12" font-weight="700" fill="#6b4a06">github.com OAuth</text>
+    <text x="765" y="341" text-anchor="middle" font-size="11" fill="#6b4a06">authorize + token exchange</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke-width="1.6" fill="none">
+    <!-- browser -> ingress -->
+    <line x1="450" y1="74" x2="450" y2="148" stroke="#0c447c" marker-end="url(#ahb)"/>
+    <!-- ingress -> container -->
+    <line x1="450" y1="202" x2="450" y2="248" stroke="#5a6577" marker-end="url(#ah)"/>
+    <!-- dns -> ingress (dashed) -->
+    <line x1="230" y1="176" x2="348" y2="176" stroke="#bfa0eb" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+    <!-- browser -> github data -->
+    <line x1="560" y1="44" x2="650" y2="116" stroke="#5a6577" marker-end="url(#ah)"/>
+    <!-- browser -> askbot -->
+    <line x1="560" y1="58" x2="650" y2="200" stroke="#5a6577" marker-end="url(#ah)"/>
+    <!-- container <-> github oauth -->
+    <line x1="570" y1="320" x2="648" y2="326" stroke="#6b4a06" marker-end="url(#ah)"/>
+  </g>
+  <!-- arrow labels -->
+  <g font-family="-apple-system,sans-serif" font-size="10.5" fill="#5a6577">
+    <text x="458" y="118">https (앱 로드 + /gh/*)</text>
+    <text x="280" y="168" fill="#3f1f72">호스트 해석 → CE 엣지 IP</text>
+    <text x="566" y="78">트리·파일 (+토큰)</text>
+    <text x="566" y="135">AI 질문</text>
+    <text x="576" y="312" fill="#6b4a06">code→token (secret)</text>
+  </g>
+</svg>
+<figcaption>그림 1 — 사내 배포 토폴로지. 브라우저는 CE 인그레스(TLS)를 거쳐 컨테이너의 정적 앱과 OAuth를 같은 origin에서 받고, GitHub 데이터·askbot·OAuth는 직접 호출한다.</figcaption>
+</figure>
+
+<table>
+  <tr><th>구성요소</th><th>역할</th><th>비고</th></tr>
+  <tr><td>Cloudflare DNS</td><td>moreh.dev 존의 호스트명 → IP 해석</td><td>DNS-only(회색) 또는 프록시(주황)</td></tr>
+  <tr><td>CE ingress</td><td>TLS 종단 + 호스트명 라우팅</td><td>cert-manager/Let’s Encrypt 추정</td></tr>
+  <tr><td>repo-lens container</td><td>정적 <code>./out</code> 서빙 + <code>/gh/*</code> OAuth</td><td><code>server/server.mjs</code>, :8080</td></tr>
+  <tr><td>api.github.com / raw</td><td>레포 메타·트리·파일</td><td>브라우저가 토큰으로 직접</td></tr>
+  <tr><td>github.com OAuth</td><td>로그인 동의 + code→token</td><td>secret은 컨테이너에만</td></tr>
+  <tr><td>askbot.ce.moreh.dev</td><td>AI 응답</td><td>origin 허용목록 게이트</td></tr>
+</table>
+<p class="callout">공개 데모는 동일한 정적 앱을 <b>GitHub Pages</b>(han-oqo.github.io/repo-lens)로 서빙합니다. 여기엔 OAuth 서버가 없어 private 레포는 토큰 붙여넣기로만 봅니다.</p>
+
+<!-- 3 -->
+<h2 id="ce"><span class="num">3</span> ce.moreh.dev의 원리 (DNS)</h2>
+<p>공개 DNS를 조회해 확인한 사실입니다. <code>moreh.dev</code>의 네임서버는 <b>Cloudflare</b>이고, <code>askbot.ce.moreh.dev</code>는 <b>A 레코드</b>로 회사 엣지 공인 IP를 직접 가리킵니다(프록시 IP가 아니라 실 IP → DNS-only). <code>ce</code>는 존 위임이 아니라 단순 서브도메인 네이밍 관례입니다.</p>
+<pre><code><span class="cmt"># 직접 확인</span>
+$ dig +short NS moreh.dev
+dion.ns.cloudflare.com.
+sky.ns.cloudflare.com.
+
+$ dig +short A askbot.ce.moreh.dev
+&lt;CE 엣지 공인 IP&gt;            <span class="cmt"># Cloudflare 프록시 IP가 아님 = DNS-only</span></code></pre>
+<figure class="fig">
+<svg viewBox="0 0 880 130" role="img" aria-label="DNS resolution path">
+  <defs><marker id="ah2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5a6577"/></marker></defs>
+  <g font-family="-apple-system,sans-serif">
+    <rect x="10" y="40" width="150" height="48" rx="9" fill="#fff" stroke="#1f1e1b"/><text x="85" y="69" text-anchor="middle" font-size="12.5" font-weight="700">브라우저</text>
+    <rect x="225" y="40" width="190" height="48" rx="9" fill="#f1e8fb" stroke="#bfa0eb"/><text x="320" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="#3f1f72">Cloudflare NS</text><text x="320" y="79" text-anchor="middle" font-size="10.5" fill="#3f1f72">moreh.dev 존</text>
+    <rect x="480" y="40" width="200" height="48" rx="9" fill="#eaf3de" stroke="#97c459"/><text x="580" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="#27500a">A 레코드</text><text x="580" y="79" text-anchor="middle" font-size="10.5" fill="#27500a">repolens.ce.moreh.dev → IP</text>
+    <rect x="745" y="40" width="125" height="48" rx="9" fill="#e6f1fb" stroke="#85b7eb"/><text x="807" y="69" text-anchor="middle" font-size="12" font-weight="700" fill="#0c447c">CE 엣지</text>
+  </g>
+  <g stroke="#5a6577" stroke-width="1.6" fill="none">
+    <line x1="160" y1="64" x2="223" y2="64" marker-end="url(#ah2)"/>
+    <line x1="415" y1="64" x2="478" y2="64" marker-end="url(#ah2)"/>
+    <line x1="680" y1="64" x2="743" y2="64" marker-end="url(#ah2)"/>
+  </g>
+</svg>
+<figcaption>그림 2 — 호스트 해석 경로. Cloudflare가 이름→IP를 알려주면 브라우저는 그 CE 엣지 IP로 직접 https 연결한다.</figcaption>
+</figure>
+<p><b>그래서 새 서비스 추가 = 한 줄.</b> Cloudflare에 <code>repolens.ce.moreh.dev</code> A(또는 인그레스로 CNAME)를 추가하고, CE 인그레스에 그 호스트 라우트 + TLS 인증서를 붙이면 끝. askbot과 똑같은 패턴입니다.</p>
+
+<!-- 4 -->
+<h2 id="oauth"><span class="num">4</span> 로그인 흐름 (OAuth)</h2>
+<p>정적 페이지는 <code>client_secret</code>을 안전하게 못 들고, GitHub은 PKCE도 토큰 엔드포인트 CORS도 지원하지 않습니다. 그래서 secret을 쥐고 <b>code→token 교환만</b> 하는 작은 서버(<code>server/server.mjs</code>)가 필요합니다. 토큰은 URL fragment로 앱에 전달되어 서버 로그에 남지 않습니다.</p>
+<figure class="fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="OAuth sign-in sequence">
+  <defs><marker id="ah3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5a6577"/></marker></defs>
+  <g font-family="-apple-system,sans-serif" font-size="12.5" font-weight="700">
+    <rect x="55" y="20" width="150" height="40" rx="9" fill="#fff" stroke="#0c447c"/><text x="130" y="45" text-anchor="middle">브라우저</text>
+    <rect x="355" y="20" width="180" height="40" rx="9" fill="#fff" stroke="#1f1e1b"/><text x="445" y="45" text-anchor="middle">OAuth 서버 (CE)</text>
+    <rect x="690" y="20" width="120" height="40" rx="9" fill="#fbf0d9" stroke="#e6b54f"/><text x="750" y="45" text-anchor="middle" fill="#6b4a06">github.com</text>
+  </g>
+  <g stroke="#cfcabb" stroke-width="1.3"><line x1="130" y1="60" x2="130" y2="410"/><line x1="445" y1="60" x2="445" y2="410"/><line x1="750" y1="60" x2="750" y2="410"/></g>
+  <g font-family="-apple-system,sans-serif" font-size="11" fill="#1f1e1b">
+    <g stroke="#5a6577" stroke-width="1.5" fill="none">
+      <line x1="130" y1="95" x2="443" y2="95" marker-end="url(#ah3)"/>
+      <line x1="445" y1="135" x2="132" y2="135" marker-end="url(#ah3)"/>
+      <line x1="130" y1="178" x2="748" y2="178" marker-end="url(#ah3)"/>
+      <line x1="750" y1="218" x2="132" y2="218" marker-end="url(#ah3)"/>
+      <line x1="130" y1="258" x2="443" y2="258" marker-end="url(#ah3)"/>
+      <line x1="445" y1="298" x2="748" y2="298" marker-end="url(#ah3)"/>
+      <line x1="750" y1="338" x2="447" y2="338" marker-end="url(#ah3)"/>
+      <line x1="445" y1="378" x2="132" y2="378" marker-end="url(#ah3)"/>
+    </g>
+    <text x="150" y="90">① GET /gh/login?redirect=app</text>
+    <text x="150" y="130">② 302 → authorize (+ state 쿠키)</text>
+    <text x="150" y="173">③ authorize (사용자 승인 · SSO)</text>
+    <text x="150" y="213">④ 302 → /gh/callback?code</text>
+    <text x="150" y="253">⑤ GET /gh/callback?code (쿠키)</text>
+    <text x="455" y="293">⑥ POST token (code+secret)</text>
+    <text x="455" y="333">⑦ access_token</text>
+    <text x="150" y="373">⑧ 302 → app#gh_token</text>
+  </g>
+</svg>
+<figcaption>그림 3 — OAuth 시퀀스. state nonce 쿠키(HttpOnly·Secure·SameSite=Lax)로 CSRF를 막고, redirect 대상은 허용목록으로 정확히 검증한다.</figcaption>
+</figure>
+<p>워커가 아니라 사내 한 박스로 갈 때는 같은 로직을 <code>server/server.mjs</code>가 처리합니다. 워커 버전은 <code>workers/github-oauth.worker.js</code>로 동봉.</p>
+
+<!-- 5 -->
+<h2 id="data"><span class="num">5</span> 데이터 흐름 &amp; 레이트리밋</h2>
+<p>레포 1개 로드의 GitHub API 호출은 <b>딱 3번</b>이고, 파일 내용은 API 한도를 안 먹는 raw CDN에서 가져옵니다.</p>
+<table>
+  <tr><th>단계</th><th>호출</th><th>API 소모</th></tr>
+  <tr><td>레포 메타</td><td><code>GET /repos/:o/:r</code></td><td>1</td></tr>
+  <tr><td>파일 트리</td><td><code>GET /repos/:o/:r/git/trees/:branch?recursive=1</code></td><td>1</td></tr>
+  <tr><td>언어 비율</td><td><code>GET /repos/:o/:r/languages</code></td><td>1</td></tr>
+  <tr><td>파일 내용 (public)</td><td><code>raw.githubusercontent.com/...</code></td><td>0</td></tr>
+  <tr><td>파일 내용 (private)</td><td>contents API (+ &gt;1MB는 blobs API)</td><td>토큰 한도(5000/h)</td></tr>
+</table>
+<p>미인증 60/h로도 public 레포는 충분하고, 토큰을 넣으면 5000/h + private 접근. 받은 파일은 IndexedDB에 캐시됩니다.</p>
+
+<!-- 6 -->
+<h2 id="deploy-pages"><span class="num">6</span> 배포 ① 공개 데모 (GitHub Pages)</h2>
+<p><code>main</code>에 push하면 <code>.github/workflows/pages.yml</code>가 정적 빌드(basePath <code>/repo-lens</code>) 후 Pages에 배포합니다.</p>
+<pre><code><span class="cmt"># 레포는 HAN-oQo 소유 — 기본 활성 계정(hanq-moreh)에서 전환</span>
+gh auth switch --user HAN-oQo
+git add -A &amp;&amp; git commit -m "..."
+git push origin main                 <span class="cmt"># → 워크플로우 트리거</span>
+gh run watch --repo HAN-oQo/repo-lens
+gh auth switch --user hanq-moreh     <span class="cmt"># 원래 계정 복구</span></code></pre>
+<p>최초 1회 Pages 활성화: <code>gh api -X POST repos/HAN-oQo/repo-lens/pages -f build_type=workflow</code></p>
+
+<!-- 7 -->
+<h2 id="deploy-ce"><span class="num">7</span> 배포 ② 사내 (repolens.ce.moreh.dev)</h2>
+<p>사람이 한 번 준비할 것: OAuth App(client_id/secret, 콜백 <code>https://repolens.ce.moreh.dev/gh/callback</code>), <code>.env</code>, Cloudflare DNS + CE 인그레스/TLS, 그리고 askbot CORS 허용목록에 새 origin 추가.</p>
+<pre><code><span class="cmt"># 1) OAuth App 등록 (GitHub → Settings → Developer settings → OAuth Apps)</span>
+<span class="cmt">#    Homepage:  https://repolens.ce.moreh.dev</span>
+<span class="cmt">#    Callback:  https://repolens.ce.moreh.dev/gh/callback</span>
+
+<span class="cmt"># 2) 시크릿/설정</span>
+cp .env.example .env        <span class="cmt"># GH_CLIENT_ID / GH_CLIENT_SECRET 채우기</span>
+
+<span class="cmt"># 3) 컨테이너 빌드 (basePath=루트, OAuth base 베이크)</span>
+scripts/repolens.sh image
+
+<span class="cmt"># 4) 로컬 스모크 → CE 레지스트리 push → 인그레스 뒤 Deployment 롤</span>
+scripts/repolens.sh run
+docker tag repolens:latest &lt;registry&gt;/repolens:latest &amp;&amp; docker push &lt;registry&gt;/repolens:latest</code></pre>
+<p>Docker 없이 로컬 확인: <code>scripts/repolens.sh build-ce &amp;&amp; scripts/repolens.sh serve</code>. 상세는 <code>DEPLOY.md</code>.</p>
+<p class="callout">사내 전용 유지: 인그레스 소스 IP 허용목록/VPN, 또는 Cloudflare Access(Zero Trust). private 소스 + 토큰을 다루므로 공개 IP 노출 금지.</p>
+
+<!-- 8 -->
+<h2 id="repro"><span class="num">8</span> 처음부터 재현</h2>
+<p>빈 디렉토리에서 전체를 다시 만드는 명령 순서입니다.</p>
+<pre><code><span class="cmt"># 스캐폴드 + 의존성</span>
+npx create-next-app@latest . --ts --app --no-src-dir --no-tailwind \
+    --no-eslint --import-alias "@/*" --use-npm --no-turbopack
+npm install --legacy-peer-deps @monaco-editor/react react-markdown \
+    remark-gfm rehype-highlight highlight.js react-force-graph-2d idb
+
+<span class="cmt"># 개발 / 빌드</span>
+npm run dev                  <span class="cmt"># localhost:3000</span>
+npm run build                <span class="cmt"># 정적 export → ./out</span>
+
+<span class="cmt"># 레포 생성 + 배포 (HAN-oQo)</span>
+git init -b main &amp;&amp; git add -A &amp;&amp; git commit -m "init"
+gh auth switch --user HAN-oQo
+gh repo create HAN-oQo/repo-lens --public --source=. --remote=origin --push
+gh api -X POST repos/HAN-oQo/repo-lens/pages -f build_type=workflow</code></pre>
+<p>핵심 파일: <code>app/page.tsx</code>(상태), <code>lib/github.ts</code>(fetch+OAuth), <code>lib/imports.ts</code>(그래프), <code>components/AskPanel.tsx</code>(AI), <code>server/server.mjs</code>(self-host).</p>
+
+<!-- 9 -->
+<h2 id="sec"><span class="num">9</span> 보안</h2>
+<div class="callout ok"><b>수정됨 — 오픈 리다이렉트(높음).</b> redirect 허용 검사가 bare <code>startsWith(prefix)</code>여서 <code>app.example.com.evil.com</code>이 통과, 토큰 탈취 가능했음. <code>r===p || startsWith(p+"/")</code>로 수정(서버·워커 모두). 공격→400, 정상→302 검증.</div>
+<div class="callout ok"><b>강화 — 경로 탈출.</b> 정적 핸들러가 정규화 후 resolved 경로가 <code>OUT_DIR</code> 안인지 확인(밖이면 403). <code>/../../etc/passwd</code> 탈출 불가 확인.</div>
+<ul>
+  <li><b>XSS 표면</b> — AI 답변은 <code>lib/md.ts</code>가 먼저 escape 후 화이트리스트 태그/링크만 생성. README는 react-markdown(raw HTML·<code>javascript:</code> 차단). <code>eval</code> 없음.</li>
+  <li><b>토큰</b> — OAuth/PAT 토큰은 <code>localStorage</code>에만, fragment로 받은 뒤 <code>history.replaceState</code>로 제거. secret은 서버에만.</li>
+  <li><b>스코프</b> — OAuth App은 <code>repo read:org</code>(읽기전용 repo 스코프 부재). 최소권한은 GitHub App(per-repo Contents/Metadata read)으로 가능.</li>
+  <li><b>알려진</b> — <code>npm audit</code>가 Next가 끌어오는 <code>postcss</code> 1건(신뢰 못할 CSS 빌드 시에만 해당, 우리 영향 미미). Dependabot 추적.</li>
+</ul>
+<p><b>지속 점검(꾸준히):</b> <code>.github/dependabot.yml</code>(주간 npm·actions PR) + 배포 전 <code>scripts/repolens.sh audit</code> / <code>/security-review</code>. 기록은 <code>SECURITY.md</code>.</p>
+
+<footer>
+  <span>Repo Lens · HAN-oQo/repo-lens</span>
+  <span>han-oqo.github.io/repo-lens · repolens.ce.moreh.dev</span>
+</footer>
+
+</div>
+</body>
+</html>
