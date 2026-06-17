@@ -1,0 +1,107 @@
+# Repo Lens on the CE cluster (like ce-blog). Adapt the «PLACEHOLDERS» to match
+# your existing services (ingress class, TLS issuer, namespace, image registry).
+#
+# Build & push the image first (NEXT_PUBLIC_* baked at build time):
+#   docker build \
+#     --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
+#     --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev \
+#     -t «REGISTRY»/repolens:latest .
+#   docker push «REGISTRY»/repolens:latest
+#
+# Create the secret (do NOT commit real values), then `kubectl apply -f repolens.yaml`.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: repolens-data
+  namespace: «NAMESPACE»          # e.g. the same ns as ce-blog/askbot
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repolens-secrets
+  namespace: «NAMESPACE»
+type: Opaque
+stringData:
+  GH_CLIENT_ID: "«oauth app client id»"
+  GH_CLIENT_SECRET: "«oauth app client secret»"
+  ANTHROPIC_API_KEY: "«anthropic key»"   # OR remove and set ASK_URL in the Deployment env
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repolens
+  namespace: «NAMESPACE»
+  labels: { app: repolens }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: repolens } }
+  template:
+    metadata:
+      labels: { app: repolens }
+    spec:
+      containers:
+        - name: repolens
+          image: «REGISTRY»/repolens:latest
+          ports: [{ containerPort: 8080 }]
+          env:
+            - { name: PORT, value: "8080" }
+            - { name: DATA_DIR, value: "/data" }
+            - { name: AUTH_REQUIRED, value: "1" }            # login-gated (public host)
+            - { name: ALLOWED_REDIRECTS, value: "https://repolens.ce.moreh.dev" }
+            - { name: CLONE_ALLOWED_HOSTS, value: "github.com" }
+            - { name: ASK_URL, value: "https://askbot.ce.moreh.dev/ask" }  # or use ANTHROPIC_API_KEY from the secret
+          envFrom:
+            - secretRef: { name: repolens-secrets }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { cpu: "2", memory: "2Gi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: repolens-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: repolens
+  namespace: «NAMESPACE»
+spec:
+  selector: { app: repolens }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: repolens
+  namespace: «NAMESPACE»
+  annotations:
+    # match ce-blog/askbot: e.g. cert-manager.io/cluster-issuer: letsencrypt-prod
+    «TLS_ANNOTATIONS»
+spec:
+  ingressClassName: «INGRESS_CLASS»     # e.g. nginx / traefik (same as ce-blog)
+  tls:
+    - hosts: ["repolens.ce.moreh.dev"]
+      secretName: repolens-tls
+  rules:
+    - host: repolens.ce.moreh.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: repolens
+                port: { number: 80 }
