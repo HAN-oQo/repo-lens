@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Repo Lens — CE 클러스터 수동 배포 가이드 (nginx)</title>
+<style>
+  :root{
+    --bg:#faf9f5;--card:#fff;--ink:#1f1e1b;--muted:#6b6a63;--faint:#8a8f98;--line:#e3e1d8;
+    --blue:#0c447c;--blue-bg:#e6f1fb;--blue-bd:#85b7eb;--green:#27500a;--green-bg:#eaf3de;--green-bd:#97c459;
+    --amber:#6b4a06;--amber-bg:#fbf0d9;--amber-bd:#e6b54f;--red:#6f2a12;--red-bg:#fce6dd;--red-bd:#ef9f86;
+    --code-bg:#1e2330;--code-ink:#e6e8ee;--mono:"SF Mono",Menlo,Consolas,ui-monospace,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Pretendard",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65}
+  .wrap{max-width:880px;margin:0 auto;padding:40px 22px 90px}
+  header.head{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:6px}
+  h1{font-size:27px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .meta{font:12px var(--mono);color:var(--faint);margin-top:10px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--green-bd);background:var(--green-bg);color:var(--green);margin-right:6px}
+  h2{font-size:20px;margin:36px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+  h2 .num{display:inline-block;min-width:28px;color:var(--green-bd)}
+  h3{font-size:15px;margin:20px 0 6px}
+  p{margin:9px 0}
+  code{background:#eceef2;border-radius:5px;padding:1px 6px;font:.86em var(--mono);color:#b03a55}
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:14px 16px;overflow-x:auto;font:12.5px/1.55 var(--mono);margin:11px 0}
+  pre code{background:none;color:inherit;padding:0}
+  .cmt{color:#8a93a6}
+  .ph{background:#5a4a1a;color:#ffe39a;border-radius:4px;padding:0 5px}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--green-bg);color:var(--green)}
+  .note{border-left:4px solid var(--blue-bd);background:var(--blue-bg);color:#0c3a66;border-radius:0 8px 8px 0;padding:9px 13px;margin:12px 0;font-size:13.5px}
+  .warn{border-left:4px solid var(--amber-bd);background:var(--amber-bg);color:#4a3705}
+  .web{display:inline-block;font-size:11px;font-weight:700;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);border-radius:4px;padding:1px 7px;margin-right:6px}
+  .cli{display:inline-block;font-size:11px;font-weight:700;background:#eee9dd;color:#5a4a1a;border:1px solid var(--amber-bd);border-radius:4px;padding:1px 7px;margin-right:6px}
+  ol{padding-left:22px} ol li{margin:6px 0}
+  footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="head">
+  <span class="tag">Runbook</span>
+  <h1>Repo Lens — CE 클러스터 수동 배포 (nginx)</h1>
+  <p class="sub">ce-blog와 같은 방식으로 <code>repolens.ce.moreh.dev</code>에 배포. 본인 인프라(무료) · 로그인 게이트 · 읽기 전용.</p>
+  <p class="meta">ingress: nginx · manifest: deploy/k8s/repolens.yaml · 작성 2026-06-17</p>
+</header>
+
+<p><span class="web">웹</span> = 브라우저 클릭 작업 · <span class="cli">CLI</span> = 터미널 명령. <span class="ph">«…»</span> 는 본인 값으로 치환.</p>
+
+<div class="note">왜 안전한가: 호스트는 닿을 수 있어도 <b>AUTH_REQUIRED=1</b> 이라 GitHub 로그인한 사용자만 API를 씁니다. 게다가 코드 <b>읽기 전용</b> 뷰어이고, GitHub 토큰은 브라우저에만, clone은 <code>github.com</code>만 허용합니다.</div>
+
+<h2><span class="num">0</span> 준비물 (한 번만)</h2>
+<table>
+  <tr><th>항목</th><th>내용</th></tr>
+  <tr><td><span class="web">웹</span> DNS</td><td>Cloudflare(moreh.dev)에 <code>repolens.ce.moreh.dev</code> → CE 엣지 (askbot과 동일하게 A 또는 CNAME)</td></tr>
+  <tr><td><span class="web">웹</span> OAuth App</td><td>GitHub → Settings → Developer settings → OAuth Apps → New<br>Homepage <code>https://repolens.ce.moreh.dev</code> · Callback <code>https://repolens.ce.moreh.dev/gh/callback</code> → Client ID/secret 확보</td></tr>
+  <tr><td><span class="cli">CLI</span> 도구</td><td><code>docker</code>, <code>kubectl</code>(클러스터 컨텍스트), 이미지 푸시할 <span class="ph">«REGISTRY»</span></td></tr>
+  <tr><td>클러스터</td><td>ingress-nginx + cert-manager(ce-blog가 쓰는 ClusterIssuer 이름 = <span class="ph">«CLUSTER_ISSUER»</span>) 이미 동작 중</td></tr>
+</table>
+
+<h2><span class="num">1</span> 이미지 빌드 &amp; 푸시 <span class="cli">CLI</span></h2>
+<p><code>NEXT_PUBLIC_*</code> 는 <b>빌드 시점에 박힙니다</b> → 호스트명을 build-arg로 전달.</p>
+<pre><code>cd /path/to/repo-lens
+docker build \
+  --build-arg NEXT_PUBLIC_API_BASE=https://repolens.ce.moreh.dev \
+  --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev \
+  -t «REGISTRY»/repolens:latest .
+docker push «REGISTRY»/repolens:latest</code></pre>
+<div class="note">빌드 머신 ≠ 클러스터 노드여도 됩니다. 멀티아키(예: arm 맥에서 빌드→amd64 노드)면 <code>docker buildx build --platform linux/amd64 …</code> 로.</div>
+
+<h2><span class="num">2</span> 매니페스트 값 채우기 <span class="cli">CLI</span></h2>
+<p><code>deploy/k8s/repolens.yaml</code> 의 <span class="ph">«…»</span> 를 ce-blog와 동일하게:</p>
+<table>
+  <tr><th>placeholder</th><th>값</th></tr>
+  <tr><td><code>«NAMESPACE»</code></td><td>ce-blog/askbot와 같은 네임스페이스</td></tr>
+  <tr><td><code>«REGISTRY»</code></td><td>1번에서 푸시한 이미지 경로</td></tr>
+  <tr><td><code>«CLUSTER_ISSUER»</code></td><td>cert-manager ClusterIssuer 이름(예: <code>letsencrypt-prod</code>)</td></tr>
+  <tr><td>Secret 값</td><td>OAuth Client ID/secret, (선택) <code>ANTHROPIC_API_KEY</code></td></tr>
+</table>
+<p>ingressClassName은 이미 <code>nginx</code>, 타임아웃/인증서 어노테이션도 세팅돼 있습니다. LLM은 기본 <code>ASK_URL=https://askbot.ce.moreh.dev/ask</code>(사내 게이트웨이) — Anthropic 직통을 쓰려면 Secret의 <code>ANTHROPIC_API_KEY</code>만 채우고 Deployment의 <code>ASK_URL</code> env를 지우면 됩니다.</p>
+<div class="warn">Secret에 실제 값을 넣은 파일은 <b>커밋하지 마세요</b>. 아래처럼 <code>kubectl</code>로 직접 만들거나 sealed-secrets 사용.</div>
+<pre><code><span class="cmt"># 시크릿만 따로 만드는 방법(매니페스트의 Secret 블록 대신)</span>
+kubectl -n «NAMESPACE» create secret generic repolens-secrets \
+  --from-literal=GH_CLIENT_ID=«id» \
+  --from-literal=GH_CLIENT_SECRET=«secret» \
+  --from-literal=ANTHROPIC_API_KEY=«key»   <span class="cmt"># ASK_URL만 쓸 거면 생략</span></code></pre>
+
+<h2><span class="num">3</span> 적용 <span class="cli">CLI</span></h2>
+<pre><code>kubectl apply -f deploy/k8s/repolens.yaml
+kubectl -n «NAMESPACE» rollout status deploy/repolens</code></pre>
+<p>또는 gitops면 <code>deploy/k8s/README.md</code> 의 Argo CD Application 을 추가(자동 sync).</p>
+
+<h2><span class="num">4</span> 확인 <span class="cli">CLI</span> + <span class="web">웹</span></h2>
+<pre><code>kubectl -n «NAMESPACE» get pods -l app=repolens
+kubectl -n «NAMESPACE» get ingress repolens          <span class="cmt"># ADDRESS/HOSTS 확인</span>
+<span class="cmt"># 클러스터 내부 헬스</span>
+kubectl -n «NAMESPACE» port-forward deploy/repolens 8080:8080 &amp; curl -s localhost:8080/healthz   <span class="cmt"># → ok</span>
+<span class="cmt"># 인증서 발급 대기(cert-manager)</span>
+kubectl -n «NAMESPACE» get certificate repolens-tls</code></pre>
+<p><span class="web">웹</span> 인증서가 Ready 되면 <code>https://repolens.ce.moreh.dev</code> 열기 → <b>Sign in with GitHub</b> → 레포 Load → 트리·전문검색·심볼 그래프·GraphRAG.</p>
+
+<h2><span class="num">5</span> (선택) 공개 데모도 이 백엔드로 <span class="cli">CLI</span></h2>
+<p><code>han-oqo.github.io/repo-lens</code> 가 이 백엔드를 쓰게 하려면 repo 변수만:</p>
+<pre><code>gh auth switch --user HAN-oQo
+gh variable set REPOLENS_API_BASE   --repo HAN-oQo/repo-lens --body https://repolens.ce.moreh.dev
+gh variable set REPOLENS_OAUTH_BASE --repo HAN-oQo/repo-lens --body https://repolens.ce.moreh.dev
+gh workflow run "Deploy to GitHub Pages" --repo HAN-oQo/repo-lens
+gh auth switch --user hanq-moreh</code></pre>
+<p>그리고 OAuth App 콜백/ALLOWED_REDIRECTS에 <code>https://han-oqo.github.io/repo-lens</code> 도 추가하면 공개 데모에서 로그인→v2 동작.</p>
+
+<h2><span class="num">6</span> 업데이트 · 롤백 <span class="cli">CLI</span></h2>
+<pre><code><span class="cmt"># 새 코드 → 이미지 다시 빌드/푸시 후</span>
+kubectl -n «NAMESPACE» rollout restart deploy/repolens
+kubectl -n «NAMESPACE» rollout undo deploy/repolens     <span class="cmt"># 롤백</span></code></pre>
+
+<h2><span class="num">7</span> 트러블슈팅</h2>
+<table>
+  <tr><th>증상</th><th>원인 / 해결</th></tr>
+  <tr><td>Pod <code>ImagePullBackOff</code></td><td>레지스트리 접근 — imagePullSecret 필요 시 Deployment에 추가, 이미지 경로/플랫폼(amd64) 확인</td></tr>
+  <tr><td>인그레스 404/503</td><td>DNS가 CE 엣지를 가리키는지, ingressClass <code>nginx</code> 일치, Service/Pod Ready 확인</td></tr>
+  <tr><td>인증서 Pending</td><td>ClusterIssuer 이름 오타, DNS 전파 대기(HTTP-01이면 80 도달 필요)</td></tr>
+  <tr><td>로그인 후 401 반복</td><td>OAuth 콜백 URL ≠ <code>https://repolens.ce.moreh.dev/gh/callback</code>, 또는 <code>ALLOWED_REDIRECTS</code> 불일치</td></tr>
+  <tr><td>private aiandlabs 레포 404</td><td>OAuth App을 org(SSO)에서 Authorize 안 함 → org 설정에서 승인</td></tr>
+  <tr><td>Ask가 "No LLM configured"</td><td><code>ANTHROPIC_API_KEY</code> 또는 <code>ASK_URL</code> 미설정 / askbot이 클러스터에서 미도달</td></tr>
+</table>
+
+<footer>Repo Lens · CE 배포 런북 · deploy/k8s/repolens.yaml · HAN-oQo/repo-lens</footer>
+</div>
+</body>
+</html>

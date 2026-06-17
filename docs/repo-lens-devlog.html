@@ -177,6 +177,13 @@
     <p><span class="lab ok">VERIFIED</span> <code>AUTH_REQUIRED=1</code>에서 무토큰 <code>/api/*</code> → 401, <code>/healthz</code> → 200, 빌드 통과.</p>
   </div>
 
+  <div class="ent v2">
+    <div class="when">Day 2 · 배포처 확정</div>
+    <h3>Fly 대신 자체 CE 클러스터(ce-blog처럼)</h3>
+    <p><span class="lab dec">DECISION</span> Fly는 무료 티어가 없어졌(카드+과금) → 본인 <b>CE 클러스터에 ce-blog 패턴으로</b> 배포(무료, 검증된 길). v2는 컨테이너라 그대로 얹힘. <code>repolens.ce.moreh.dev</code>는 닿을 수 있으니 <b>로그인 게이트</b>로 잠금.</p>
+    <p>산출물: <code>deploy/k8s/repolens.yaml</code>(Deployment+Service+Ingress<b>(nginx)</b>+PVC+Secret, cert-manager·proxy-timeout 어노테이션, argocd App 예시), 수동 배포 런북 <code>docs/repo-lens-ce-deploy.html</code>(웹/CLI 단계·확인·트러블슈팅). 남은 값: 네임스페이스·레지스트리·ClusterIssuer 이름(ce-blog와 일치).</p>
+  </div>
+
 </div>
 
 <footer>Repo Lens build log · 계속 갱신됨 · HAN-oQo/repo-lens</footer>

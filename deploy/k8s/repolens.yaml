@@ -88,10 +88,11 @@ metadata:
   name: repolens
   namespace: «NAMESPACE»
   annotations:
-    # match ce-blog/askbot: e.g. cert-manager.io/cluster-issuer: letsencrypt-prod
-    «TLS_ANNOTATIONS»
+    cert-manager.io/cluster-issuer: "«CLUSTER_ISSUER»"   # match ce-blog, e.g. letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"   # /api/ask LLM calls can be slow
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
-  ingressClassName: «INGRESS_CLASS»     # e.g. nginx / traefik (same as ce-blog)
+  ingressClassName: nginx
   tls:
     - hosts: ["repolens.ce.moreh.dev"]
       secretName: repolens-tls
