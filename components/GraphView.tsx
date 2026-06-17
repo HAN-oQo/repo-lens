@@ -106,10 +106,11 @@ export default function GraphView({
             nodeLabel={(n: any) => `${n.id}  ·  in ${n.inDeg} / out ${n.outDeg}`}
             cooldownTicks={120}
             onEngineStop={() => fgRef.current?.zoomToFit?.(400, 60)}
-            onNodeClick={(n: any) => onOpenFile(n.id)}
+            onNodeClick={(n: any) => onOpenFile(n.sourceFile || n.id)}
             onNodeHover={(n: any) => setHover(n ? n.id : null)}
             linkColor={(l: any) => {
-              if (!hover) return "rgba(150,160,180,0.18)";
+              const structural = l.relation === "contains";
+              if (!hover) return structural ? "rgba(150,160,180,0.07)" : "rgba(133,183,235,0.30)";
               const s = nodeId(l.source), t = nodeId(l.target);
               return s === hover || t === hover ? "#4a9eff" : "rgba(150,160,180,0.05)";
             }}
@@ -166,9 +167,9 @@ export default function GraphView({
 
         <h4>Most imported</h4>
         {data?.hubs.length ? (
-          data.hubs.map((h) => (
-            <div className="hub" key={h.id} title={h.id} onClick={() => onOpenFile(h.id)}>
-              <span className="hub-name">{h.id.split("/").pop()}</span>
+          data.hubs.map((h, i) => (
+            <div className="hub" key={h.id + i} title={h.file || h.id} onClick={() => onOpenFile(h.file || h.id)}>
+              <span className="hub-name">{(h.id.split("/").pop()) || h.id}</span>
               <span className="hub-deg">{h.inDeg}</span>
             </div>
           ))

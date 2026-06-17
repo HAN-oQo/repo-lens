@@ -24,6 +24,7 @@ import {
 import { buildTree } from "@/lib/tree";
 import { buildGraph, mapLimit } from "@/lib/imports";
 import { ext, isSourceFile } from "@/lib/lang";
+import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, type SearchHit } from "@/lib/api";
 import type { FileNode, GraphData, RepoMeta, RepoRef, Tab, TreeEntry } from "@/lib/types";
 
 const IMG_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
@@ -110,30 +111,35 @@ export default function Home() {
     setGraph(null);
     setReadme(null);
     try {
-      const m = await fetchRepoMeta(parsed.owner, parsed.repo);
-      const branch = parsed.branch || m.defaultBranch;
-      const ref: RepoRef = { owner: parsed.owner, repo: parsed.repo, branch };
-      const treeRes = await fetchTree(ref.owner, ref.repo, ref.branch);
-      const nested = buildTree(treeRes.entries);
-      setMeta(m);
-      setRepo(ref);
-      setEntries(treeRes.entries);
-      setTree(nested);
-      setTruncated(treeRes.truncated);
-
-      const paths = treeRes.entries.filter((e) => e.type === "blob").map((e) => e.path);
-      const rp = findReadme(paths);
-      setReadmePath(rp || "");
-      if (rp) {
-        try {
-          setReadme(await fetchFile(ref, rp));
-        } catch {
-          setReadme(null);
-        }
+      let ref: RepoRef;
+      let treeEntries: TreeEntry[];
+      let rp: string | null;
+      if (hasBackend) {
+        // Backend: clones server-side, returns tree + README in one call (fast, large-repo ready).
+        const d = await apiLoadRepo(input, parsed.branch);
+        ref = { owner: d.repo.owner, repo: d.repo.repo, branch: d.repo.branch };
+        treeEntries = d.tree;
+        rp = d.readmePath;
+        setMeta({ defaultBranch: d.repo.branch, description: null, language: null, stars: 0, private: false });
+        setReadme(d.readme ?? null);
+        setTruncated(false);
+      } else {
+        const m = await fetchRepoMeta(parsed.owner, parsed.repo);
+        ref = { owner: parsed.owner, repo: parsed.repo, branch: parsed.branch || m.defaultBranch };
+        const treeRes = await fetchTree(ref.owner, ref.repo, ref.branch);
+        treeEntries = treeRes.entries;
+        rp = findReadme(treeEntries.filter((e) => e.type === "blob").map((e) => e.path));
+        setMeta(m);
+        setTruncated(treeRes.truncated);
+        setReadme(rp ? await fetchFile(ref, rp).catch(() => null) : null);
+        fetchLanguages(ref.owner, ref.repo).then(setLanguages).catch(() => {});
       }
+      setRepo(ref);
+      setEntries(treeEntries);
+      setTree(buildTree(treeEntries));
+      setReadmePath(rp || "");
       setTabs([{ kind: "readme", id: "__README__", title: rp ? rp.split("/").pop()! : "README" }]);
       setActiveTab("__README__");
-      fetchLanguages(ref.owner, ref.repo).then(setLanguages).catch(() => {});
     } catch (e: any) {
       flash(e?.message || "Failed to load repository.");
     } finally {
@@ -154,7 +160,7 @@ export default function Home() {
       if (contents[path] !== undefined || IMG_EXTS.has(ext(path))) return;
       setLoadingFiles((s) => new Set(s).add(path));
       try {
-        const text = await fetchFile(repo, path);
+        const text = hasBackend ? await apiFileText(repo, path) : await fetchFile(repo, path);
         setContents((c) => ({ ...c, [path]: text }));
       } catch (e: any) {
         flash(e?.message || `Could not load ${path}`);
@@ -184,6 +190,30 @@ export default function Home() {
     setActiveTab("__GRAPH__");
     if (graph || graphBuilding || !repo) return;
     setGraphBuilding(true);
+
+    if (hasBackend) {
+      // Backend builds the symbol graph (graphify) in the background; poll until ready.
+      try {
+        const deadline = Date.now() + 6 * 60 * 1000;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const g = await apiGraph(repo);
+          if (g.status === "ready") { setGraph(g); break; }
+          if (g.status === "error" || g.status === "unavailable") {
+            flash(g.error || "Graph unavailable on the server.");
+            break;
+          }
+          if (Date.now() > deadline) { flash("Graph build timed out."); break; }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      } catch (e: any) {
+        flash(e?.message || "Failed to load graph.");
+      } finally {
+        setGraphBuilding(false);
+      }
+      return;
+    }
+
     try {
       const MAX = 1200;
       const sources = blobPaths.filter(isSourceFile);
@@ -208,11 +238,26 @@ export default function Home() {
   }, [graph, graphBuilding, repo, blobPaths, contents]);
 
   // ---------------- search ----------------
+  // Browser mode: filename filter. Backend mode: full-text via ripgrep/git-grep.
   const searchResults = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (q.length < 2) return [];
+    if (hasBackend || q.length < 2) return [];
     return blobPaths.filter((p) => p.toLowerCase().includes(q)).slice(0, 200);
   }, [search, blobPaths]);
+
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  useEffect(() => {
+    if (!hasBackend || !repo) return;
+    const q = search.trim();
+    if (q.length < 2) {
+      setHits([]);
+      return;
+    }
+    const id = setTimeout(() => {
+      apiSearch(repo, q).then((r) => setHits(r.matches)).catch(() => setHits([]));
+    }, 180); // debounce
+    return () => clearTimeout(id);
+  }, [search, repo]);
 
   // ---------------- ask context ----------------
   const activeFile = useMemo(() => {
@@ -411,22 +456,29 @@ export default function Home() {
             </>
           ) : (
             <>
-              <div className="sidebar-head"><span>Search</span></div>
+              <div className="sidebar-head"><span>{hasBackend ? "Search (full-text)" : "Search"}</span></div>
               <div className="search-box">
                 <input
                   className="search-input" value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="filter files by path…" spellCheck={false}
+                  placeholder={hasBackend ? "search code…" : "filter files by path…"} spellCheck={false}
                 />
               </div>
-              {searchResults.map((p) => (
-                <div className="search-result" key={p} onClick={() => openFile(p)}>
-                  <div>{p.split("/").pop()}</div>
-                  <div className="sr-path">{p}</div>
-                </div>
-              ))}
-              {search.trim().length >= 2 && searchResults.length === 0 && (
-                <div style={{ padding: 14 }} className="dim">No matching files.</div>
+              {hasBackend
+                ? hits.map((h, i) => (
+                    <div className="search-result" key={h.path + ":" + h.line + ":" + i} onClick={() => openFile(h.path)}>
+                      <div className="sr-path">{h.path}:{h.line}</div>
+                      <div style={{ font: "11px var(--mono)", color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.preview}</div>
+                    </div>
+                  ))
+                : searchResults.map((p) => (
+                    <div className="search-result" key={p} onClick={() => openFile(p)}>
+                      <div>{p.split("/").pop()}</div>
+                      <div className="sr-path">{p}</div>
+                    </div>
+                  ))}
+              {search.trim().length >= 2 && (hasBackend ? hits.length === 0 : searchResults.length === 0) && (
+                <div style={{ padding: 14 }} className="dim">No matches.</div>
               )}
             </>
           )}
@@ -471,7 +523,7 @@ export default function Home() {
                 <div className="placeholder">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={`https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.branch}/${activeTab}`}
+                    src={hasBackend ? apiRawUrl(repo, activeTab) : `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.branch}/${activeTab}`}
                     alt={activeTab} style={{ maxWidth: "90%", maxHeight: "80%" }}
                   />
                 </div>

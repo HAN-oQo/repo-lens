@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RepoRef } from "@/lib/types";
 import { mdToHtml } from "@/lib/md";
+import { hasBackend, apiAsk } from "@/lib/api";
 
 /* ============================ providers (ported from ask.js) ============================ */
 
@@ -402,6 +403,39 @@ export default function AskPanel(ctx: AskContext) {
     if (busy) return;
     const q = question.trim();
     if (!q) return;
+
+    // Backend (CE) mode: server-side GraphRAG. Ignores client providers/keys.
+    if (hasBackend && ctx.repoRef) {
+      const nextConvo: Msg[] = [...convo, { role: "user", content: q }];
+      setConvo(nextConvo);
+      setInput("");
+      setError("");
+      const myReq = ++reqSeq.current;
+      askStart.current = Date.now();
+      setElapsed(0);
+      setBusy(true);
+      if (tick.current) clearInterval(tick.current);
+      tick.current = setInterval(() => {
+        if (myReq === reqSeq.current) setElapsed(Math.round((Date.now() - askStart.current) / 1000));
+      }, 1000);
+      apiAsk(ctx.repoRef, q, ctx.activeFile?.path, ko)
+        .then((out) => {
+          if (myReq !== reqSeq.current) return;
+          setConvo((c) => [...c, { role: "assistant", content: out.answer || t("(no answer)", "(응답 없음)"), cites: [] }]);
+        })
+        .catch((e) => {
+          if (myReq !== reqSeq.current) return;
+          setError(t("Request failed: ", "요청 실패: ") + (e?.message || e));
+        })
+        .finally(() => {
+          if (myReq !== reqSeq.current) return;
+          if (tick.current) clearInterval(tick.current);
+          askStart.current = 0;
+          setBusy(false);
+        });
+      return;
+    }
+
     const prov = PROVIDERS[provider];
     const key = lsget(keyLS(provider), "").trim();
     setError("");

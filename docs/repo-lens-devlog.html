@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Repo Lens — 빌드 로그 (계획 · 구현 · 시행착오)</title>
+<style>
+  :root{
+    --bg:#faf9f5;--card:#fff;--ink:#1f1e1b;--muted:#6b6a63;--faint:#8a8f98;--line:#e3e1d8;
+    --blue:#0c447c;--blue-bg:#e6f1fb;--blue-bd:#85b7eb;--green:#27500a;--green-bg:#eaf3de;--green-bd:#97c459;
+    --amber:#6b4a06;--amber-bg:#fbf0d9;--amber-bd:#e6b54f;--red:#6f2a12;--red-bg:#fce6dd;--red-bd:#ef9f86;
+    --purple:#3f1f72;--purple-bg:#f1e8fb;--code-bg:#1e2330;--code-ink:#e6e8ee;
+    --mono:"SF Mono",Menlo,Consolas,ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Pretendard",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65}
+  .wrap{max-width:880px;margin:0 auto;padding:40px 22px 90px}
+  header.head{border-bottom:2px solid var(--ink);padding-bottom:18px}
+  h1{font-size:28px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .meta{font:12px var(--mono);color:var(--faint);margin-top:10px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--amber-bd);background:var(--amber-bg);color:var(--amber);margin-right:6px}
+  code{background:#eceef2;border-radius:5px;padding:1px 6px;font:.86em var(--mono);color:#b03a55}
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:13px 15px;overflow-x:auto;font:12px/1.5 var(--mono);margin:10px 0}
+  pre code{background:none;color:inherit;padding:0}
+  .cmt{color:#8a93a6}
+  /* timeline */
+  .tl{position:relative;margin:26px 0 0;padding-left:30px;border-left:2px solid var(--line)}
+  .ent{position:relative;margin:0 0 30px}
+  .ent::before{content:"";position:absolute;left:-37px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--green-bd);border:2px solid var(--bg)}
+  .ent.v2::before{background:var(--purple);}
+  .ent.sec::before{background:var(--red-bd);}
+  .ent h3{margin:0 0 2px;font-size:17px}
+  .ent .when{font:11px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+  .ent p{margin:8px 0}
+  .lab{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:4px;margin-right:6px;vertical-align:1px}
+  .lab.dec{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd)}
+  .lab.err{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
+  .lab.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+  ul.notes{margin:8px 0;padding-left:18px}
+  ul.notes li{margin:5px 0}
+  .gotcha{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--red-bd);border-radius:0 8px 8px 0;padding:8px 12px;margin:8px 0;font-size:13.5px}
+  .gotcha b{color:var(--red)}
+  footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
+  .living{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);border-radius:8px;padding:8px 12px;font-size:13px;margin:18px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="head">
+  <span class="tag">Build log</span>
+  <h1>Repo Lens — 빌드 로그</h1>
+  <p class="sub">계획 · 구현 과정 · 결정 · 시행착오를 시간순으로. (살아있는 문서 — 단계마다 갱신)</p>
+  <p class="meta">repo HAN-oQo/repo-lens · 시작 2026-06-16 · 갱신 2026-06-17</p>
+</header>
+
+<div class="living">📝 이 문서는 작업이 진행되며 계속 추가됩니다. <span class="lab dec">DECISION</span> 결정 · <span class="lab err">GOTCHA</span> 막힌 지점/시행착오 · <span class="lab ok">VERIFIED</span> 검증됨.</div>
+
+<div class="tl">
+
+  <div class="ent">
+    <div class="when">Day 1 · 기획</div>
+    <h3>요구사항 &amp; 블로그 위젯 발굴</h3>
+    <p>목표: GitHub 링크 → VSCode형 UI(좌 트리 · 중앙 README/코드 · 우 AI 위젯) + 놀리지 그래프. "AI 위젯"은 블로그(<code>HAN-oQo.github.io</code>)에 있다고 해서 <code>assets/ask.js</code>를 정독.</p>
+    <ul class="notes">
+      <li>발견: 멀티프로바이더 위젯(groq/claude/openai/gemini/proxy/<b>bot</b>), 기본 봇 <code>askbot.ce.moreh.dev/ask</code>(2단계 비동기 폴링), <b>origin 허용목록 <code>han-oqo.github.io</code></b>로 게이트.</li>
+    </ul>
+    <p><span class="lab dec">DECISION</span> Next.js+TS+Monaco · 정적 export · 그래프는 파일 import 의존성(MVP) · <b>같은 계정 Pages 프로젝트 페이지</b>로 배포(origin 동일 → 봇 재사용).</p>
+    <p><span class="lab dec">DECISION</span> 레포명 <code>code-viewer</code> → 논의 끝 <b><code>repo-lens</code></b>("렌즈로 코드 흐름을 본다").</p>
+  </div>
+
+  <div class="ent">
+    <div class="when">Day 1 · v1 구현</div>
+    <h3>스캐폴드 → 컴포넌트 → 라이브러리</h3>
+    <p>Next 16.2.9 + React 19. <code>lib/{github,tree,imports,lang,md}.ts</code>, <code>components/{Explorer,CodeView,MarkdownView,GraphView,AskPanel}.tsx</code>, 단일 클라이언트 <code>app/page.tsx</code>. ask.js를 React로 이식하며 프로바이더·비동기 폴링·스트리밍·EN/KO·자체 md 렌더 보존.</p>
+    <div class="gotcha"><b>GOTCHA</b> — <code>create-next-app</code>이 Next 16을 깔았는데, Next 16은 <code>next.config</code>의 <code>eslint</code> 키를 제거함 → 빌드 타입에러. 키 삭제로 해결.</div>
+    <div class="gotcha"><b>GOTCHA</b> — React 19 × <code>react-force-graph</code> peer 충돌 → <code>npm install --legacy-peer-deps</code> 필요(이후 CI/도커도 동일).</div>
+    <div class="gotcha"><b>GOTCHA</b> — GraphView 팔레트에 잘못된 hex <code>"#9 db4e2"</code>(공백) → 그래프 색 깨짐. 수정.</div>
+    <div class="gotcha"><b>GOTCHA</b> — <code>next/dynamic</code> + react-force-graph 타입 마찰 → 컴포넌트를 <code>as any</code> 캐스팅.</div>
+    <p><span class="lab ok">VERIFIED</span> 빌드/SSR 통과. import resolver를 <b>이 프로젝트 자신</b>에 돌려 21엣지, <code>lib/types.ts</code>가 8회 import되는 허브로 정확 식별(<code>@/</code> alias 해석 포함). URL 파서 6케이스 통과.</p>
+  </div>
+
+  <div class="ent">
+    <div class="when">Day 1 · v1 배포</div>
+    <h3>GitHub Pages로 라이브</h3>
+    <div class="gotcha"><b>GOTCHA</b> — 레포를 둘 계정 <code>HAN-oQo</code>는 <b>비활성</b> 계정(기본 활성은 <code>hanq-moreh</code>). 작업마다 <code>gh auth switch --user HAN-oQo</code> → 끝나면 복구하는 패턴 확립.</div>
+    <p><code>gh repo create HAN-oQo/repo-lens --public --source=. --push</code> + <code>.github/workflows/pages.yml</code> + Pages 활성화(<code>build_type=workflow</code>). basePath <code>/repo-lens</code>, <code>.nojekyll</code>.</p>
+    <p><span class="lab ok">VERIFIED</span> <code>han-oqo.github.io/repo-lens</code> HTTP 200, 에셋 <code>/repo-lens/_next</code> prefix 정상.</p>
+  </div>
+
+  <div class="ent">
+    <div class="when">Day 2 · private 레포</div>
+    <h3>토큰 경로 + 검증</h3>
+    <p>⚙ 토큰(localStorage). 토큰 있으면 contents API, 없으면 raw CDN. <span class="lab ok">VERIFIED</span> 실제 private <code>aiandlabs/andmeter</code>로 meta·tree(1045)·contents API 경로 확인.</p>
+    <ul class="notes"><li>추가: 토큰 <b>검증</b>(/user, 인증 계정 표시), <b>&gt;1MB 파일 blob API 폴백</b>, fine-grained/classic·SAML SSO 안내, Ask에 "코드가 프로바이더로 전송됨" 안내.</li></ul>
+  </div>
+
+  <div class="ent">
+    <div class="when">Day 2 · OAuth</div>
+    <h3>"Sign in with GitHub"</h3>
+    <p>유저: "그냥 깃헙 로그인 연동하면?" → <span class="lab dec">DECISION</span> 가능하지만 <b>client_secret 때문에 미니 백엔드 1개 필수</b>(정적 페이지 불가, GitHub은 PKCE·토큰 CORS 미지원). 워커(<code>workers/github-oauth.worker.js</code>) + 프론트 로그인 플로우 구현. 토큰은 URL fragment로 전달 → <code>repolens-gh-token</code>(기존 fetch 그대로 동작).</p>
+  </div>
+
+  <div class="ent">
+    <div class="when">Day 2 · 자체호스팅 조사</div>
+    <h3>ce.moreh.dev 원리</h3>
+    <p>유저: "여러 사람 쓸 내부도구 + CE-master + DuckDNS?" → 실제 DNS 조회: <code>moreh.dev</code> NS=Cloudflare, <code>askbot.ce.moreh.dev</code>=A레코드(CE 엣지 공인 IP, DNS-only). <code>ce</code>는 네이밍 관례.</p>
+    <p><span class="lab dec">DECISION</span> DuckDNS보다 기존 패턴(<code>repolens.ce.moreh.dev</code>) 권장. env 기반 basePath, <b>단일 Node 서버</b>(정적+OAuth 한 프로세스), Dockerfile, DEPLOY.md 작성. <span class="lab ok">VERIFIED</span> 루트 빌드 + 서버 스모크(/healthz·정적·/gh/login 302·잘못된 redirect 400).</p>
+  </div>
+
+  <div class="ent sec">
+    <div class="when">Day 2 · 보안</div>
+    <h3>보안 점검 → 실제 취약점 발견·수정</h3>
+    <div class="gotcha"><b>취약점(높음) — 오픈 리다이렉트.</b> OAuth redirect 허용 검사가 bare <code>startsWith(prefix)</code>여서 <code>repolens.ce.moreh.dev.evil.com</code>이 통과 → 토큰 탈취 가능. <code>r===p || startsWith(p+"/")</code>로 수정(서버·워커). <span class="lab ok">VERIFIED</span> 공격→400, 정상→302.</div>
+    <ul class="notes">
+      <li>강화: 정적 서버 path-traversal containment(밖이면 403, <code>/etc/passwd</code> 탈출 불가 확인).</li>
+      <li><b>npm audit</b>: Next가 끌어오는 <code>postcss</code> 1건(우리 영향 미미). → <code>SECURITY.md</code> + <b>Dependabot</b>(주간) 도입 → 가동되어 보안 PR 자동 생성 확인.</li>
+    </ul>
+    <p>산출물: <code>docs/repo-lens-report.html</code>(아키텍처/배포 보고서, SVG 다이어그램), <code>CLAUDE.md</code> 배포 런북, <code>scripts/repolens.sh</code>.</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · 방향 전환</div>
+    <h3>graphify 발굴 → 북극성 재정의</h3>
+    <p>유저가 <code>safishamsi/graphify</code>(⭐68k) 제시. 분석: tree-sitter 심볼 그래프(25언어+SQL) · Leiden 커뮤니티 · confidence · GraphRAG · MCP 서버 — <b>우리 MVP 그래프의 상위호환</b>. 단 Python/로컬 실행이라 브라우저 불가 → graph.json을 우리가 렌더하는 형태.</p>
+    <p><span class="lab dec">북극성</span> 유저: "가볍게·개입없이·효율적으로 <b>대용량</b> 코드 이해 + 빠른 Q&amp;A·검색. 느리면 안 됨. 작업량 무관." → 브라우저 단독 불가 결론. <b>v2: CE 노드의 분석 백엔드</b>(clone+graphify+ripgrep+GraphRAG, 캐시·백그라운드·점진).</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 제약</div>
+    <h3>CE-master 노드 자기완결, 비공개</h3>
+    <p><span class="lab dec">DECISION</span> 유저: 공개되는 <code>ce.moreh.dev</code>에 띄웠다 잘못되는 게 싫다 → <b>전부 CE-master CPU 노드 안</b>, <code>127.0.0.1:8080</code> 바인딩, SSH 로컬포워드 접근. 부수효과로 <b>단순해짐</b>: OAuth 콜백 <code>http://localhost</code>(TLS·DNS 불필요), AI는 백엔드→askbot 서버간(CORS 소멸).</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 Phase 1</div>
+    <h3>분석 백엔드 스켈레톤 — clone · tree · file · 검색</h3>
+    <p><code>server/lib/util.mjs</code>(안전 subprocess, <b>git 토큰을 argv 아닌 env로</b> — <code>GIT_CONFIG_*</code> extraheader, host 허용목록, path containment), <code>repo.mjs</code>(shallow clone + <code>git ls-files</code> 트리 + 파일읽기 + 이미지 raw), <code>search.mjs</code>, <code>api.mjs</code>(<code>/api/repo·file·raw·search·graph·status</code>)를 <code>server.mjs</code>에 마운트. 토큰은 <code>x-github-token</code> 헤더로 받아 clone에만 쓰고 미보관.</p>
+    <div class="gotcha"><b>GOTCHA — 검색 0건.</b> <code>rg</code>가 직접 실행은 되는데 node <code>spawn("rg")</code>는 <code>ENOENT</code>. 원인: 이 Claude 환경에서 <code>rg</code>는 PATH의 실제 바이너리가 아니라 <b>셸 함수(claude 래퍼)</b>라 execvp가 못 찾음(git은 실 바이너리라 OK). 도커/CE 노드(apk/apt로 rg 설치)는 정상이지만, 견고함을 위해 <b>rg 실패 시 <code>git grep</code> 폴백</b> 추가 → 어디서나 동작.</div>
+    <p><span class="lab ok">VERIFIED</span> HTTP로 <code>sindresorhus/slugify</code> clone(13파일)·README(5714자)·파일읽기·검색(git-grep, export 8건)·<b>path traversal 차단</b>·<b>로그에 토큰 미노출</b> 확인. 로컬 툴: node25·git2.43·uv·python3.14 (graphify는 P3에서 <code>uv tool install graphifyy</code>).</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 Phase 2</div>
+    <h3>프론트 ↔ 백엔드 연결 (브라우저 폴백 유지)</h3>
+    <p><code>lib/api.ts</code>(<code>NEXT_PUBLIC_API_BASE</code> 있으면 백엔드). <code>page.tsx</code>의 repo·파일·검색·그래프·이미지 경로를 백엔드/브라우저로 분기. 검색은 백엔드에서 <b>전문검색</b>(file:line+스니펫)으로 업그레이드. 토큰은 <code>x-github-token</code> 헤더로. <span class="lab ok">VERIFIED</span> 빌드 통과.</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 Phase 3</div>
+    <h3>graphify 심볼 그래프 통합</h3>
+    <div class="gotcha"><b>GOTCHA</b> — 처음 <code>graphify .</code>가 doc 파일에 <b>semantic(LLM) 패스</b>를 시도하다 <code>openai</code> 백엔드 미설치로 전체 실패. 해결: <code>graphify update</code>가 <b>"no LLM" 코드 전용 AST 추출</b> → 무료·로컬·빠름.</div>
+    <p><code>graphify.mjs</code>(<code>graphify update</code>→graph.json→<code>toGraphData</code>: community→색, relation/confidence→엣지, source_location→클릭), <code>graph.mjs</code>(백그라운드 빌드 큐+상태). GraphView가 커뮤니티 색·구조(contains) 엣지 옅게·흐름(calls/imports) 강조·노드 클릭→파일. <span class="lab ok">VERIFIED</span> clone→백그라운드→ready, slugify 68노드/69엣지/14커뮤니티, 허브=심볼.</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 Phase 4</div>
+    <h3>GraphRAG Ask (서버 검색 → LLM)</h3>
+    <p><code>graphrag.mjs</code>: 질문 토큰 추출 → ripgrep + (그래프 ready면) 노드 이름매칭→이웃 1홉 확장 → 관련 파일 top-7 슬라이스를 토큰예산 컨텍스트로 → LLM(<code>ANTHROPIC_API_KEY</code> 직통 또는 <code>ASK_URL</code> askbot). 답변 백틱 경로는 클릭 링크. AskPanel은 백엔드면 <code>/api/ask</code>. <span class="lab ok">VERIFIED</span> "separator/replacements" 질문에 <code>index.js</code>·<code>overridable-replacements.js</code> 정확 선택; <code>/api/ask</code>가 검색까지 돌고 LLM 미설정만 알림.</p>
+  </div>
+
+  <div class="ent v2">
+    <div class="when">Day 2 · v2 Phase 5</div>
+    <h3>노드-로컬 Docker + 배포 정비</h3>
+    <p>Dockerfile를 node+git+ripgrep+<code>graphifyy</code>(bookworm)로, <code>127.0.0.1:8080</code> 바인딩 + <code>/data</code> 볼륨. <code>scripts/repolens.sh</code>·<code>.env.example</code>·<code>DEPLOY.md</code>(SSH터널)·<code>SECURITY.md</code>(localhost·clone SSRF·토큰 env-only)·<code>CLAUDE.md</code> 런북 갱신. 이미지 빌드는 노드에서, 서버+graphify는 네이티브 검증 완료.</p>
+  </div>
+
+</div>
+
+<footer>Repo Lens build log · 계속 갱신됨 · HAN-oQo/repo-lens</footer>
+</div>
+</body>
+</html>

@@ -32,17 +32,21 @@ export interface FileNode {
 }
 
 export interface GraphNode {
-  id: string; // file path
-  name: string; // basename
-  group: string; // top-level dir (for coloring)
+  id: string; // file path (v1) or graphify node id (v2)
+  name: string; // basename / symbol label
+  group: string; // top-level dir (v1) or community (v2) — for coloring
   val: number; // degree (for sizing)
   inDeg: number;
   outDeg: number;
+  sourceFile?: string; // graphify: file to open on click
+  sourceLocation?: string; // graphify: e.g. "L42"
 }
 
 export interface GraphLink {
   source: string;
   target: string;
+  relation?: string; // graphify: calls | imports | contains | ...
+  confidence?: string; // graphify: EXTRACTED | INFERRED | AMBIGUOUS
 }
 
 export interface GraphData {
@@ -50,10 +54,12 @@ export interface GraphData {
   links: GraphLink[];
   /** files we parsed but whose imports resolved to nothing in-repo */
   orphans: string[];
-  /** most-imported files (id, inDeg) */
-  hubs: { id: string; inDeg: number }[];
+  /** most-imported files/symbols */
+  hubs: { id: string; inDeg: number; file?: string }[];
   parsedCount: number;
   skippedCount: number;
+  communities?: number;
+  engine?: string;
 }
 
 export type TabKind = "readme" | "file" | "graph";

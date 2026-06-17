@@ -45,6 +45,16 @@ threat model, the review findings, and the ongoing process.
 - Monaco is loaded from a CDN by `@monaco-editor/react`. For a stricter supply-chain
   posture, self-host Monaco. Acceptable for an internal tool over HTTPS.
 
+## v2 analysis backend (CE node)
+
+The self-hosted backend (`server/`) clones repos and runs subprocesses. Controls:
+- **Localhost-only.** Run with `-p 127.0.0.1:8080:8080`; never `0.0.0.0`/public. Reached via SSH tunnel.
+- **Clone SSRF guard.** `parseRepo` + `CLONE_ALLOWED_HOSTS` (default `github.com`); owner/repo validated against `^[A-Za-z0-9._-]+$`.
+- **Token in env, not argv.** Git auth is passed via `GIT_CONFIG_*` extraheader env (not the URL/command line), used only for clone, never logged. Errors are token-scrubbed before leaving the process.
+- **Path containment.** `/api/file` and `/api/raw` resolve inside the clone dir (403 otherwise); 2 MB text / 8 MB raw caps.
+- **Subprocess caps.** `run()` enforces timeouts + output caps; graphify runs `update` (no LLM, no network beyond git).
+- **GraphRAG LLM.** Server-side only; `ANTHROPIC_API_KEY`/`ASK_URL` live in the container env, never in the browser.
+
 ## Ongoing process ("꾸준히")
 
 - **Dependabot** (`.github/dependabot.yml`) opens weekly PRs for npm + GitHub Actions.

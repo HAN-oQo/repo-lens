@@ -17,7 +17,12 @@ import **knowledge graph** (center), AI **Ask** panel grounded in the repo (righ
 ## Two deploy targets
 1. **Public demo → GitHub Pages** at `https://han-oqo.github.io/repo-lens` (repo `HAN-oQo/repo-lens`).
    Auto-deploys on push to `main` via `.github/workflows/pages.yml`. basePath `/repo-lens`. No private-repo OAuth here (PAT only).
-2. **Internal tool → `repolens.ce.moreh.dev`** (Docker + CE ingress, VPN-only). basePath root, "Sign in with GitHub" via the bundled OAuth server. Full guide in `DEPLOY.md`.
+2. **Internal tool → CE-master CPU node, localhost-only** (Docker, reached via SSH tunnel; NEVER public — see [[ce-deploy-preference]]). This is the **v2 analysis backend**: `server/` clones the repo, serves the app + OAuth, builds a **graphify** symbol graph, does **ripgrep full-text search**, and answers via **GraphRAG**. Frontend uses it when `NEXT_PUBLIC_API_BASE` is set (else v1 browser fallback). Full guide in `DEPLOY.md`.
+
+### v2 backend map
+- `server/server.mjs` mounts `/api/*` (`api.mjs`) + serves `./out` + `/gh/*` OAuth.
+- `server/lib/`: `util.mjs` (spawn/PATH/token-env/containment), `repo.mjs` (clone/tree/file), `search.mjs` (rg → git-grep fallback), `graphify.mjs` (`graphify update` → graph.json → GraphData), `graph.mjs` (bg build queue + state), `graphrag.mjs` (retrieve + LLM).
+- Frontend: `lib/api.ts` (backend client), graph/search/ask wired in `app/page.tsx` + `components/{GraphView,AskPanel}.tsx`.
 
 ## "Deploy it" runbook (for an automated run)
 
@@ -30,17 +35,17 @@ gh run watch --repo HAN-oQo/repo-lens
 gh auth switch --user hanq-moreh  # restore the default active account
 ```
 
-**Internal (CE):** prerequisites the human supplies once — an OAuth App
-(`client_id`/`secret`, callback `https://repolens.ce.moreh.dev/gh/callback`), a
-`.env` (from `.env.example`), a Cloudflare DNS record + CE ingress/TLS for the host,
-and adding `https://repolens.ce.moreh.dev` to askbot's CORS allowlist.
+**Internal (CE node, v2):** human supplies once — an OAuth App (callback
+`http://localhost:8080/gh/callback`) and a `.env` (from `.env.example`) with
+`GH_CLIENT_ID/SECRET` + `ANTHROPIC_API_KEY` (or `ASK_URL`). Then on the node:
 ```bash
-cp .env.example .env              # fill GH_CLIENT_ID / GH_CLIENT_SECRET
-scripts/repolens.sh image         # build the container (BASE_PATH= , OAUTH base baked)
-scripts/repolens.sh run           # local smoke test of the image
-# then push the image to the CE registry and roll the Deployment behind the ingress.
+cp .env.example .env
+scripts/repolens.sh image     # node + git + ripgrep + graphify image
+scripts/repolens.sh run       # -p 127.0.0.1:8080:8080 -v repolens-data:/data (localhost ONLY)
+# reach it: ssh -L 8080:localhost:8080 <ce-master> → http://localhost:8080
 ```
-Local smoke without Docker: `scripts/repolens.sh build-ce && scripts/repolens.sh serve`.
+Native (no Docker): needs `git`, `ripgrep`, `uv tool install graphifyy`, then
+`scripts/repolens.sh build-ce && scripts/repolens.sh serve`. Full guide: `DEPLOY.md`.
 
 ## Before every deploy (security — keep this up)
 - `scripts/repolens.sh audit` (or `/security-review`). See `SECURITY.md`.

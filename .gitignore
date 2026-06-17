@@ -43,3 +43,6 @@ out/
 
 # local secrets
 .env
+
+# backend clones/caches
+data/

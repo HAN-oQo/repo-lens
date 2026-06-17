@@ -22,6 +22,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join, normalize, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
+import { handleApi } from "./api.mjs";
 
 const PORT = Number(process.env.PORT || 8080);
 const OUT = process.env.OUT_DIR || "./out";
@@ -100,6 +101,12 @@ const server = createServer(async (req, res) => {
     if (p === "/healthz") {
       res.writeHead(200, { "Content-Type": "text/plain" });
       return res.end("ok");
+    }
+
+    // analysis backend
+    if (p.startsWith("/api/")) {
+      await handleApi(req, res, url);
+      return;
     }
 
     // ── /gh/login ──────────────────────────────────────────────────────────
