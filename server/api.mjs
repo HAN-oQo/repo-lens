@@ -8,7 +8,7 @@ import { graphState, getGraph, requestGraph, buildFocusGraph, buildUsageFlowGrap
 import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
 import { logActivity, recentActivity } from "./lib/activity.mjs";
-import { extractUsage } from "./lib/usage.mjs";
+import { extractUsage, suggestEntryPoints } from "./lib/usage.mjs";
 
 const EXPENSIVE = new Set(["/api/repo", "/api/ask", "/api/graph"]);
 
@@ -161,6 +161,19 @@ export async function handleApi(req, res, url) {
       const rp = findReadme(paths);
       const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
       return json(res, 200, { repo: `${r.owner}/${r.repo}`, readmePath: rp, ...extractUsage(readme) });
+    }
+
+    // GET /api/suggest?repo=o/r  → 3–5 example entry-point prompts (README + hubs)
+    if (p === "/api/suggest" && req.method === "GET") {
+      const r = resolveRepo(url.searchParams.get("repo"));
+      if (!r) return json(res, 400, { error: "bad repo" });
+      const paths = (await listTree(r.dir).catch(() => [])).map((t) => t.path);
+      const rp = findReadme(paths);
+      const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
+      const { symbols } = extractUsage(readme);
+      const g = await getGraph(r.owner, r.repo).catch(() => ({}));
+      const hubs = g.status === "ready" ? g.hubs || [] : [];
+      return json(res, 200, { repo: `${r.owner}/${r.repo}`, suggestions: suggestEntryPoints({ symbols, hubs }) });
     }
 
     // GET /api/usageflow?repo=o/r  → "what runs when you follow the README" subgraph

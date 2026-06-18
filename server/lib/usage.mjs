@@ -33,6 +33,39 @@ export function referencedSymbols(code) {
   return [...out].slice(0, 25);
 }
 
+/** Build 3–5 clickable example entry points from README usage symbols + graph
+ *  hubs. Each: { label (chip text), question (sent to Ask), symbol? (to focus the
+ *  graph on, for U5). */
+export function suggestEntryPoints({ symbols = [], hubs = [] } = {}) {
+  const seen = new Set();
+  const specific = [];
+  const add = (arr, label, question, symbol) => {
+    const k = (symbol || label).toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    arr.push(symbol ? { label, question, symbol } : { label, question });
+  };
+  // README usage entry points → "trace this call" (the unique value — keep up front)
+  for (const s of symbols.slice(0, 3)) {
+    add(specific, `Trace \`${s}()\``, `Trace what happens when you call \`${s}\` — walk through the code path step by step.`, s);
+  }
+  // most-depended-on symbols (graph hubs)
+  for (const hb of hubs.slice(0, 3)) {
+    const name = String(hb?.id || "").replace(/\(\)$/, "");
+    if (name) add(specific, `How does \`${name}\` work?`, `Explain \`${name}\`: what it does and what depends on it.`, name);
+  }
+  // generic flows; "Repo overview" is always reserved a slot, the rest backfill.
+  const generic = [];
+  add(generic, "Repo overview", "Give a high-level overview of this repo: its purpose, main components, and how they connect.");
+  add(generic, "Main flow", "Based on the imports and call graph, what is the main execution flow when this project runs?");
+  add(generic, "Key files", "Which files are the most important to read first, and why?");
+
+  const out = specific.slice(0, 4);
+  out.push(generic[0]); // overview always offered
+  for (let i = 1; i < generic.length && out.length < 3; i++) out.push(generic[i]); // backfill if sparse
+  return out.slice(0, 5);
+}
+
 /** Parse README → { snippets:[{lang,code,heading}], symbols:[…] }. */
 export function extractUsage(readme) {
   const lines = String(readme || "").split(/\r?\n/);

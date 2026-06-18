@@ -96,10 +96,12 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/u2-usageflow.mjs` — for slugify the usage subgraph contains `slugify`
     and its callees; node count < full. Metric: focus node count.
   - *Result:* PASS 2026-06-18 — slugify usage-flow = 18 nodes / 21 links (vs full 68), centers on slugify, seeded by [slugify, slugifyWithCounter, reset].
-- [ ] **U3 — Suggested entry points.** Backend returns 3–5 example prompts/flows.
+- [x] **U3 — Suggested entry points.** Backend returns 3–5 example prompts/flows.
+  (`suggestEntryPoints` in usage.mjs from README symbols + graph hubs; `GET /api/suggest`;
+  each {label, question, symbol?} — usage traces up front, "Repo overview" always offered.)
   - *Test:* `tests/u3-suggest.mjs` — `/api/suggest?repo=` (or `/api/repo`) returns
     ≥3 example prompts. Metric: # suggestions.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — slugify: 5 [Trace slugify(), Trace slugifyWithCounter(), Trace reset(), How does buildPatternSlug work?, Repo overview].
 - [ ] **U4 — Graph defaults to the usage flow.** Graph tab opens on the usage-flow
   subgraph; "Full overview" switches.
   - *Test:* `tests/u4-default-flow.mjs` — first graph payload for a fresh repo is the
@@ -161,6 +163,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 U3 — /api/suggest returns 3–5 example entry-point prompts (README symbols + hubs). test: tests/u3-suggest.mjs PASS — slugify 5 suggestions, usage traces + overview.
 - 2026-06-18 U2 — usage-flow subgraph seeded by README symbols (extractSubgraphBySymbols + /api/usageflow). test: tests/u2-usageflow.mjs PASS — slugify flow 18/68 nodes, centers on slugify.
 - 2026-06-18 U1 — /api/usage extracts README quickstart snippets + referenced symbols (server/lib/usage.mjs). test: tests/u1-usage.mjs PASS — slugify: 4 snippets, [slugify, slugifyWithCounter, reset].
 - 2026-06-18 A2 — removed EN/KO toggle + ko plumbing; UI English-only. test: tests/a2-no-lang-toggle.mjs PASS — "언어" gone from bundle. (Goal 2 Ask cleanup complete.)
