@@ -75,10 +75,11 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/a2-no-lang-toggle.mjs` — assert no language-toggle markup in the
     built bundle; `/api/ask` answers in English by default.
   - *Result:* (pending)
-- [ ] **A3 — Simplify Ask header/settings.** With A1+A2, reduce the ⚙ to model picker +
-  "new chat" (or remove).
+- [x] **A3 — Simplify Ask header/settings.** With A1+A2, reduce the ⚙ to model picker +
+  "new chat" (or remove). (Backend mode: ⚙ removed since A1 emptied it; model dropdown
+  no longer gated on a loaded repo, so it's always visible.)
   - *Test:* `tests/a3-ask-clean.mjs` — assert no dead controls remain (source/bundle check).
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — ⚙ gated behind !hasBackend; model picker condition dropped the `ctx.repoRef` gate (always visible); build green.
 
 ## Goal 3 — Usage-driven graph (README flow first, with examples)
 - [ ] **U1 — Extract README usage.** Backend pulls quickstart code blocks + referenced
@@ -138,6 +139,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 A3 — backend Ask: removed the now-empty ⚙ button; model dropdown always visible (dropped repo gate). test: tests/a3-ask-clean.mjs PASS. (done out of order to fix the awkward post-A1 state — A2 still pending.)
 - 2026-06-18 A1 — Ask settings hide provider/URL/API-key in backend mode (only inline model picker). test: tests/a1-ask-ui.mjs PASS — 3 controls gated behind !hasBackend.
 - 2026-06-18 S4 — DEFERRED ([!]) — superseded by S1; reopen with /next S4 if toGraphData becomes a bottleneck.
 - 2026-06-18 S3 — GraphRAG capped to 6 files / 30k chars + retrieval/LLM timing logged. test: tests/s3-retrieval.mjs PASS — retrieval=60ms, 4 files, 21,360 chars.

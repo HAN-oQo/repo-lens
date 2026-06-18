@@ -586,9 +586,12 @@ export default function AskPanel(ctx: AskContext) {
         <button className="icon-btn" title={t("New chat", "새 대화")} onClick={clearChat}>
           🗑
         </button>
-        <button className="icon-btn" title={t("Settings", "설정")} onClick={() => setSetOpen((s) => !s)}>
-          ⚙
-        </button>
+        {/* Backend mode has nothing to configure (model picker is inline) — no ⚙. */}
+        {!hasBackend && (
+          <button className="icon-btn" title={t("Settings", "설정")} onClick={() => setSetOpen((s) => !s)}>
+            ⚙
+          </button>
+        )}
       </div>
 
       {/* settings */}
@@ -799,7 +802,7 @@ export default function AskPanel(ctx: AskContext) {
           <button className={"ask-go" + (busy ? " stop" : "")} onClick={() => (busy ? stopGen() : send(input))}>
             {busy ? t("Stop", "중단") : t("Ask", "물어보기")}
           </button>
-          {hasBackend && ctx.repoRef && beModels && (beModels.cloud.length > 0 || beModels.local.length > 0) && (
+          {hasBackend && beModels && (beModels.cloud.length > 0 || beModels.local.length > 0) && (
             <select className="ask-msel" value={model} onChange={(e) => pickModel(e.target.value)} title={t("model", "모델")}>
               {beModels.cloud.length > 0 && (
                 <optgroup label={t("Claude — cloud", "Claude — 클라우드")}>
