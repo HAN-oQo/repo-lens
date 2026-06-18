@@ -215,11 +215,15 @@ tab** rendering that query's focus subgraph in the chosen visualization.
   - *Result:* PASS 2026-06-18 — slugify call-tree rooted at slugify, 4 steps / depth 1 (1-hop
     usage subgraph), pre-order numbered; cyclic graph a→b→c→a terminates (count=4, ↩ leaf);
     GraphView wiring asserted; build green. Test 12/12.
-- [ ] **V3 — Mermaid flowchart view.** Add `mermaid` dep; pure `toMermaid(graph)` →
-  `flowchart LR` string (sanitized ids, directed edges); component renders it, node click
-  → open file.
+- [x] **V3 — Mermaid flowchart view.** Added `mermaid` dep; pure `toMermaid`/`buildMermaid`
+  (`lib/mermaid.ts`) → `flowchart LR` with sanitized node ids + real names as quoted labels +
+  directed edges; `MermaidView` renders it (lazy mermaid import) and wires node clicks → open
+  file. (`jsdom` added as a devDep so the test can run `mermaid.parse()` headless.)
   - *Test:* `tests/v3-mermaid.mjs` — `toMermaid(subgraph)` starts with `flowchart LR`,
     includes a `slugify --> …` edge, and `mermaid.parse()` accepts it. Metric: nodes/edges.
+  - *Result:* PASS 2026-06-18 — slugify flowchart = 18 nodes / 21 edges, `slugify --> decamelize`
+    edge present, ids sanitized; `mermaid.parse()` accepts it (diagramType flowchart-v2, via jsdom);
+    build green. Test 11/11. (Live SVG render confirmed manually.)
 - [ ] **V4 — Left activity-bar viz entries.** Add buttons for the viz modes (DAG /
   call-tree / mermaid) beside File · Search · Graph; selecting one sets the active viz.
   - *Test:* `tests/v4-activitybar.mjs` — page source/bundle: the new activity-bar buttons
@@ -258,6 +262,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 V3 — mermaid flowchart: pure toMermaid/buildMermaid (lib/mermaid.ts, sanitized ids + labels + directed edges) + MermaidView (lazy mermaid render, node-click→open); jsdom devDep for headless parse test. test: tests/v3-mermaid.mjs PASS 11/11 — slugify 18 nodes/21 edges, mermaid.parse accepts, build green.
 - 2026-06-18 V2 — call-tree/step-list: pure toCallTree(graph, root?) → ordered numbered nested steps, cycle-safe + capped (lib/callTree.ts); CallTreeView renders the tree mode. test: tests/v2-calltree.mjs PASS 12/12 — slugify rooted correctly, cyclic graph terminates, build green.
 - 2026-06-18 V1 — pluggable graph render modes: lib/graphModes.ts registry (force/dag/tree/mermaid → renderer+dag) + GraphView mode prop dispatch; force/dag fold in via resolveMode, tree/mermaid are ModeStub placeholders for V2/V3. test: tests/v1-modes.mjs PASS 15/15 — 4 modes, build green. (starts Goal 6.)
 - 2026-06-18 P1 — viewed repo persists to URL (?repo=&ref=) + localStorage and auto-restores on mount (lib/persist.ts pure helpers + two page effects). test: tests/p1-persist.mjs PASS 11/11 — round-trip equality across 3 refs, build green. (Goal 5 P1; P2 tabs after Goal 6 tab model.)

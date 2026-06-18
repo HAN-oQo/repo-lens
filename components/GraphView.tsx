@@ -6,6 +6,7 @@ import type { GraphData, RepoRef } from "@/lib/types";
 import { apiActivity, hasBackend } from "@/lib/api";
 import { type GraphMode, modeConfig, resolveMode } from "@/lib/graphModes";
 import { toCallTree, flattenCallTree } from "@/lib/callTree";
+import { buildMermaid } from "@/lib/mermaid";
 
 // cast to any: next/dynamic + the lib's prop types are awkward together, and we
 // pass canvas-callback props that don't need compile-time checking here.
@@ -51,21 +52,54 @@ function CallTreeView({ data, onOpenFile }: { data: GraphData; onOpenFile: (p: s
   );
 }
 
-// Placeholder renderer for the mermaid mode — lists nodes so the mode renders
-// without error today; V3 replaces this with a real flowchart.
-function ModeStub({ kind, data, onOpenFile }: { kind: "mermaid"; data: GraphData; onOpenFile: (p: string) => void }) {
+// Mermaid flowchart renderer (V3): build a `flowchart LR` from the subgraph and
+// render it with mermaid (browser-only — imported lazily). After render, wire each
+// node element back to its source file so clicking a box opens the file.
+function MermaidView({ data, onOpenFile }: { data: GraphData; onOpenFile: (p: string) => void }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const { code, nodes } = useMemo(() => buildMermaid(data), [data]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setErr(null);
+    (async () => {
+      try {
+        const mermaid = (await import("mermaid")).default;
+        mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose", flowchart: { curve: "basis" } });
+        const { svg } = await mermaid.render("rl-mermaid-" + Math.abs(hashCode(code)), code);
+        if (cancelled || !hostRef.current) return;
+        hostRef.current.innerHTML = svg;
+        // wire node clicks → open source file (match mermaid node ids: flowchart-<safeId>-<n>)
+        const fileBySafe = new Map(nodes.map((n) => [n.safeId, n.sourceFile || n.id]));
+        hostRef.current.querySelectorAll<SVGGElement>("g.node").forEach((el) => {
+          const domId = el.id || "";
+          for (const [safe, file] of fileBySafe) {
+            if (domId.includes("-" + safe + "-") || domId.endsWith("-" + safe) || domId === safe) {
+              el.style.cursor = "pointer";
+              el.addEventListener("click", () => onOpenFile(file));
+              break;
+            }
+          }
+        });
+      } catch (e: any) {
+        if (!cancelled) setErr(String(e?.message || e).slice(0, 200));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [code, nodes, onOpenFile]);
+
   return (
-    <div className="graph-modestub" style={{ position: "absolute", inset: 0, overflow: "auto", padding: 16, color: "#cfd4df", fontSize: 12 }}>
-      <div className="dim" style={{ marginBottom: 8 }}>Flowchart view · {data.nodes.length} symbols (preview)</div>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {data.nodes.slice(0, 200).map((n) => (
-          <li key={n.id} onClick={() => onOpenFile(n.sourceFile || n.id)} style={{ cursor: "pointer", padding: "2px 0", fontFamily: "ui-monospace, Menlo, Consolas, monospace" }} title={n.sourceFile || n.id}>
-            ▸ {n.name}
-          </li>
-        ))}
-      </ul>
+    <div className="mermaid-view" style={{ position: "absolute", inset: 0, overflow: "auto", padding: 12, background: "#1e2330" }}>
+      {err ? <div className="dim" style={{ color: "#e58fb8", fontSize: 12, fontFamily: "ui-monospace, monospace" }}>Flowchart error: {err}</div> : <div ref={hostRef} />}
     </div>
   );
+}
+
+function hashCode(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i) | 0;
+  return h;
 }
 
 export default function GraphView({
@@ -215,7 +249,7 @@ export default function GraphView({
           <CallTreeView data={activeData} onOpenFile={onOpenFile} />
         )}
         {activeData && activeData.nodes.length > 0 && cfg.renderer === "mermaid" && (
-          <ModeStub kind="mermaid" data={activeData} onOpenFile={onOpenFile} />
+          <MermaidView data={activeData} onOpenFile={onOpenFile} />
         )}
         {activeData && activeData.nodes.length > 0 && cfg.renderer === "force" && (
           <ForceGraph2D
