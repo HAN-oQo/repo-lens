@@ -38,7 +38,7 @@ const GRAPH_TABS: Tab[] = [
   { kind: "graph", id: GRAPH_OVERVIEW, title: "Overview", view: "overview" },
   { kind: "graph", id: GRAPH_QUICKSTART, title: "Quickstart", view: "quickstart" },
 ];
-import { serializeRepoState, parseRepoState, repoStateToInput, REPO_STATE_LS } from "@/lib/persist";
+import { serializeRepoState, parseRepoState, repoStateToInput, REPO_STATE_LS, serializeTabs, parseTabs, TABS_LS } from "@/lib/persist";
 import { type GraphMode, modeConfig } from "@/lib/graphModes";
 import { parseVizRequest } from "@/lib/vizQuery";
 
@@ -190,8 +190,21 @@ export default function Home() {
       setTree(buildTree(treeEntries));
       setReadmePath(rp || "");
       // V5: seed the graph area with two tabs — Overview (full) + Quickstart (usage flow).
-      setTabs([{ kind: "readme", id: "__README__", title: rp ? rp.split("/").pop()! : "README" }, ...GRAPH_TABS]);
-      setActiveTab("__README__");
+      const seeded: Tab[] = [{ kind: "readme", id: "__README__", title: rp ? rp.split("/").pop()! : "README" }, ...GRAPH_TABS];
+      // P2: restore previously-open file tabs + active tab for THIS repo, if saved.
+      let restored: Tab[] = seeded;
+      let restoredActive = "__README__";
+      try {
+        const map = JSON.parse(localStorage.getItem(TABS_LS) || "{}");
+        const saved = parseTabs(map[`${ref.owner}/${ref.repo}`]);
+        if (saved) {
+          const fileTabs = saved.tabs.filter((t) => t.kind === "file" && !restored.some((s) => s.id === t.id));
+          restored = [...seeded, ...fileTabs];
+          if (saved.active && restored.some((t) => t.id === saved.active)) restoredActive = saved.active;
+        }
+      } catch {}
+      setTabs(restored);
+      setActiveTab(restoredActive);
     } catch (e: any) {
       flash(e?.message || "Failed to load repository.");
     } finally {
@@ -223,6 +236,24 @@ export default function Home() {
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     } catch {}
   }, [repo]);
+
+  // P2: persist the open tabs + active tab per repo, so a reload restores them.
+  useEffect(() => {
+    if (!repo || !tabs.length) return;
+    try {
+      const map = JSON.parse(localStorage.getItem(TABS_LS) || "{}");
+      map[`${repo.owner}/${repo.repo}`] = JSON.parse(serializeTabs(tabs, activeTab));
+      localStorage.setItem(TABS_LS, JSON.stringify(map));
+    } catch {}
+  }, [tabs, activeTab, repo]);
+
+  // P2: a file tab activated without loaded content (e.g. a restored tab, or any
+  // re-clicked tab) lazily fetches it via openFile.
+  useEffect(() => {
+    const t = tabs.find((x) => x.id === activeTab);
+    if (t?.kind === "file" && repo && contents[activeTab] === undefined && !IMG_EXTS.has(ext(activeTab))) openFile(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ---------------- file open ----------------
   const openFile = useCallback(

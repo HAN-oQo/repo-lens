@@ -2,9 +2,34 @@
 // Pure, DOM-free serialize/parse so it's unit-testable; the page reads/writes the
 // URL + localStorage around these.
 
-import type { RepoRef } from "./types";
+import type { RepoRef, Tab } from "./types";
 
 export const REPO_STATE_LS = "repolens-repo-state";
+export const TABS_LS = "repolens-tabs"; // map: "owner/repo" → { tabs, active }
+
+// Only persist tabs we can faithfully restore on reload: README, file tabs, and the
+// seeded graph tabs (overview/quickstart). Query tabs (view:"query") hold transient
+// Ask-result subgraphs that can't be rebuilt from storage, so they're dropped.
+const restorable = (t: Tab) => t.kind === "readme" || t.kind === "file" || (t.kind === "graph" && t.view !== "query");
+
+export function serializeTabs(tabs: Tab[], active: string): string {
+  const keep = (tabs || []).filter(restorable).map((t) => ({ kind: t.kind, id: t.id, title: t.title, ...(t.view ? { view: t.view } : {}) }));
+  return JSON.stringify({ tabs: keep, active });
+}
+
+export function parseTabs(s: string | null | undefined): { tabs: Tab[]; active: string } | null {
+  if (!s) return null;
+  try {
+    const o = typeof s === "string" ? JSON.parse(s) : s;
+    if (!o || !Array.isArray(o.tabs)) return null;
+    const tabs: Tab[] = o.tabs
+      .filter((t: any) => t && typeof t.id === "string" && (t.kind === "readme" || t.kind === "file" || t.kind === "graph"))
+      .map((t: any) => ({ kind: t.kind, id: t.id, title: String(t.title || t.id), ...(t.view ? { view: t.view } : {}) }));
+    return { tabs, active: typeof o.active === "string" ? o.active : tabs[0]?.id || "" };
+  } catch {
+    return null;
+  }
+}
 
 /** RepoRef → query string "repo=owner/repo&ref=branch" (no leading ?). Empty when unusable. */
 export function serializeRepoState(ref: RepoRef | null | undefined): string {

@@ -180,13 +180,16 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Result:* PASS 2026-06-18 — round-trip equality=true across 3 refs (incl. empty + slashed
     branch); mount restore + persist wiring asserted in source; build/TS green. Test 11/11.
     (Live reload-restore confirmed manually.)
-- [ ] **P2 — Restore open tabs + active tab on reload.** Persist the open file tabs +
-  active tab per repo (localStorage, keyed by owner/repo); restore them after the repo
-  loads so refresh keeps your open files, not just the repo. **(Depends on Goal 6's tab
-  model — do after V5/V6 so we persist the final tab shape, not a soon-reworked one.)**
+- [x] **P2 — Restore open tabs + active tab on reload.** Persist the open file tabs +
+  active tab per repo (localStorage `repolens-tabs`, keyed by owner/repo); restore after the
+  repo loads. (`lib/persist.ts` pure `serializeTabs`/`parseTabs` — drops transient `query`
+  tabs; loadRepo merges saved file tabs onto the seeded set + restores active; a lazy
+  content-fetch effect loads a restored/re-clicked file tab via `openFile`.)
   - *Test:* `tests/p2-tabs.mjs` — tab list serialize/parse round-trips; source assertion
     that tabs are restored for the matching repo on load. Metric: tabs restored.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — 5 tabs → 4 restorable kept (query tab dropped), active
+    preserved; per-repo persist + restore-on-load + lazy content fetch asserted; build green.
+    Test 11/11. (Live reload-restore confirmed manually.) **Goal 5 complete.**
 
 ## Goal 6 — Visualization views + query-driven tabs
 The force blob reads differently per repo, so make the visualization **pluggable** and
@@ -276,6 +279,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 P2 — open tabs + active tab persist per repo (localStorage repolens-tabs) and restore after load; pure serializeTabs/parseTabs (drops query tabs), lazy content-fetch for restored file tabs. test: tests/p2-tabs.mjs PASS 11/11 — 4/5 restorable kept, build green. (Goal 5 complete.)
 - 2026-06-18 V6 — query-driven tabs: parseVizRequest (lib/vizQuery.ts) maps Ask phrasing→viz; handleAskDone opens a new view:"query" tab with that focus subgraph + viz (default DAG); /api/suggest chips in AskPanel drive the flow (absorbs U5+D5). test: tests/v6-query-tabs.mjs PASS 15/15 — 8/8 phrasings, build green. (Goal 6 complete.)
 - 2026-06-18 V5 — graph area seeds two tabs on load: Overview (full /api/graph) + Quickstart (usage-flow /api/usageflow); Tab.view discriminator, buildGraphIfNeeded + lazy build-on-activate, view-branched GraphView. test: tests/v5-default-tabs.mjs PASS 9/9 — Overview 68 / Quickstart 18 nodes, build green. (sets the tab model P2 persists.)
 - 2026-06-18 V4 — activity-bar viz buttons (DAG/call-tree/mermaid) set graphMode → GraphView mode prop; 🕸 resets to default. test: tests/v4-activitybar.mjs PASS 10/10 — +3 buttons, bundle labels present, build green.
