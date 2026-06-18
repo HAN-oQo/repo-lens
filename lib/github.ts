@@ -143,6 +143,42 @@ export async function validateToken(token: string): Promise<string> {
   return (j.login as string) || "?";
 }
 
+export interface RepoHit {
+  full_name: string;
+  stars: number;
+  description: string | null;
+  private: boolean;
+  owner: string;
+}
+
+/** Repo autocomplete: star-sorted GitHub search. With a token it also returns
+ *  private/accessible repos, which we float to the top (company-internal first). */
+export async function searchRepos(query: string): Promise<RepoHit[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const token = getToken();
+  try {
+    const res = await fetch(
+      `${API}/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=10`,
+      { headers: apiHeaders(token) }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const hits: RepoHit[] = (data.items || []).map((r: any) => ({
+      full_name: r.full_name,
+      stars: r.stargazers_count || 0,
+      description: r.description || null,
+      private: !!r.private,
+      owner: r.owner?.login || "",
+    }));
+    // logged in → internal (private) repos first, then by stars
+    if (token) hits.sort((a, b) => Number(b.private) - Number(a.private) || b.stars - a.stars);
+    return hits;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchRepoMeta(owner: string, repo: string): Promise<RepoMeta> {
   const j = await api<Record<string, unknown>>(`/repos/${owner}/${repo}`, getToken());
   return {

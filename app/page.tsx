@@ -18,9 +18,11 @@ import {
   fetchTree,
   findReadme,
   parseRepoUrl,
+  searchRepos,
   signOut,
   startGitHubLogin,
   validateToken,
+  type RepoHit,
 } from "@/lib/github";
 import { buildTree } from "@/lib/tree";
 import { buildGraph, mapLimit } from "@/lib/imports";
@@ -37,6 +39,8 @@ const LANG_COLORS: Record<string, string> = {
 
 export default function Home() {
   const [urlInput, setUrlInput] = useState("");
+  const [suggest, setSuggest] = useState<RepoHit[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
   const [repo, setRepo] = useState<RepoRef | null>(null);
   const [meta, setMeta] = useState<RepoMeta | null>(null);
   const [entries, setEntries] = useState<TreeEntry[]>([]);
@@ -87,6 +91,29 @@ export default function Home() {
       if (consumed) flash("Signed in with GitHub.");
     }
   }, []);
+
+  // repo autocomplete (debounced GitHub search; star-sorted, internal-first when logged in)
+  useEffect(() => {
+    const q = urlInput.trim();
+    if (q.length < 2 || /github\.com|https?:\/\//i.test(q)) {
+      setSuggest([]);
+      return;
+    }
+    const id = setTimeout(() => {
+      searchRepos(q).then((hits) => {
+        setSuggest(hits);
+        setShowSuggest(true);
+      });
+    }, 280);
+    return () => clearTimeout(id);
+  }, [urlInput]);
+
+  const pickSuggest = (full: string) => {
+    setUrlInput(full);
+    setShowSuggest(false);
+    setSuggest([]);
+    loadRepo(full);
+  };
 
   const blobPaths = useMemo(() => entries.filter((e) => e.type === "blob").map((e) => e.path), [entries]);
   const fileSet = useMemo(() => new Set(blobPaths), [blobPaths]);
@@ -368,13 +395,34 @@ export default function Home() {
             loadRepo(urlInput);
           }}
         >
-          <input
-            className="url-input"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="owner/repo  or  https://github.com/owner/repo[/tree/branch]"
-            spellCheck={false}
-          />
+          <div className="url-wrap">
+            <input
+              className="url-input"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onFocus={() => suggest.length && setShowSuggest(true)}
+              onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+              placeholder="search a repo (e.g. vllm) — or owner/repo, or a github.com URL"
+              spellCheck={false}
+            />
+            {showSuggest && suggest.length > 0 && (
+              <div className="url-suggest">
+                {suggest.map((h) => (
+                  <div
+                    key={h.full_name}
+                    className="us-item"
+                    onMouseDown={(e) => { e.preventDefault(); pickSuggest(h.full_name); }}
+                  >
+                    <div className="us-top">
+                      <span className="us-name">{h.full_name}</span>
+                      {h.private ? <span className="us-badge">internal</span> : <span className="us-star">★ {h.stars.toLocaleString()}</span>}
+                    </div>
+                    {h.description && <div className="us-desc">{h.description}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button className="btn" type="submit" disabled={loading}>
             {loading ? "Loading…" : "Load"}
           </button>

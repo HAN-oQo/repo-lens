@@ -60,6 +60,10 @@ export interface GraphData {
   skippedCount: number;
   communities?: number;
   engine?: string;
+  /** true when the server sent only a top-N overview of a larger graph */
+  capped?: boolean;
+  totalNodes?: number;
+  totalLinks?: number;
 }
 
 export type TabKind = "readme" | "file" | "graph";

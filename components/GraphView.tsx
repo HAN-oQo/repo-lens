@@ -198,9 +198,16 @@ export default function GraphView({
       </div>
 
       <div className="graph-side">
+        {data?.capped && (
+          <div className="graph-capped">
+            Showing the <b>{data.nodes.length}</b> most-connected of{" "}
+            <b>{data.totalNodes?.toLocaleString()}</b> symbols (overview).
+            <br />Ask a question to focus on a specific flow.
+          </div>
+        )}
         <h4>Graph</h4>
-        <div className="stat"><span>Files (nodes)</span><b>{data?.nodes.length ?? 0}</b></div>
-        <div className="stat"><span>Imports (edges)</span><b>{data?.links.length ?? 0}</b></div>
+        <div className="stat"><span>{data?.capped ? "Shown / total nodes" : "Files (nodes)"}</span><b>{data?.capped ? `${data.nodes.length} / ${data.totalNodes?.toLocaleString()}` : (data?.nodes.length ?? 0)}</b></div>
+        <div className="stat"><span>Imports (edges)</span><b>{data?.capped ? `${data.links.length} / ${data.totalLinks?.toLocaleString()}` : (data?.links.length ?? 0)}</b></div>
         <div className="stat"><span>Parsed</span><b>{data?.parsedCount ?? 0}</b></div>
         {!!data?.skippedCount && (
           <div className="stat"><span>Skipped (cap)</span><b>{data.skippedCount}</b></div>

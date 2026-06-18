@@ -21,6 +21,25 @@ export async function buildGraphJson(repoDir, onProgress) {
   return JSON.parse(raw);
 }
 
+/** Reduce a (possibly huge) graph to a renderable top-N overview by degree.
+ *  The full graph stays cached server-side for query-focused subgraphs later;
+ *  the browser can't render tens of thousands of nodes (force-graph dies). */
+export function capGraph(data, limit = 600) {
+  const total = data.nodes.length;
+  if (total <= limit) {
+    return { ...data, capped: false, totalNodes: total, totalLinks: data.links.length };
+  }
+  const ranked = [...data.nodes].sort((a, b) => (b.inDeg + b.outDeg) - (a.inDeg + a.outDeg)).slice(0, limit);
+  const keep = new Set(ranked.map((n) => n.id));
+  const links = data.links.filter((l) => keep.has(l.source) && keep.has(l.target));
+  return {
+    nodes: ranked, links, orphans: [], hubs: data.hubs,
+    parsedCount: data.parsedCount, skippedCount: data.skippedCount,
+    communities: data.communities, engine: data.engine,
+    capped: true, totalNodes: total, totalLinks: data.links.length,
+  };
+}
+
 /** NetworkX node-link (graphify) → our GraphData. */
 export function toGraphData(json) {
   const rawNodes = json.nodes || [];

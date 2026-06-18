@@ -1,6 +1,8 @@
 // Knowledge-graph state + background build orchestration (graphify, code-only).
-import { graphifyAvailable, buildGraphJson, toGraphData } from "./graphify.mjs";
+import { graphifyAvailable, buildGraphJson, toGraphData, capGraph } from "./graphify.mjs";
 import { logActivity } from "./activity.mjs";
+
+const MAX_GRAPH_NODES = Number(process.env.GRAPH_MAX_NODES || 600);
 
 const state = new Map(); // "owner/repo" -> { status, data?, error?, builtAt? }
 let available = null; // cached graphifyAvailable()
@@ -17,7 +19,9 @@ export function graphState(owner, repo) {
 export async function getGraph(owner, repo) {
   const s = state.get(`${owner}/${repo}`);
   if (!s) return { status: "none" };
-  if (s.status === "ready" && s.data) return { status: "ready", ...s.data };
+  // Send only a renderable top-N overview; the full graph stays cached (s.data)
+  // for query-focused subgraphs. 84k-node repos kill the browser otherwise.
+  if (s.status === "ready" && s.data) return { status: "ready", ...capGraph(s.data, MAX_GRAPH_NODES) };
   return { status: s.status, error: s.error };
 }
 

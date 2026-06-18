@@ -420,6 +420,12 @@ export default function AskPanel(ctx: AskContext) {
     const q = question.trim();
     if (!q) return;
 
+    // Backend mode needs a loaded repo (GraphRAG runs against the clone).
+    if (hasBackend && !ctx.repoRef) {
+      setError(t("Load a repository first — paste a repo above.", "먼저 레포를 로드하세요 — 위에 레포를 붙여넣으세요."));
+      return;
+    }
+
     // Backend (CE) mode: server-side GraphRAG. Ignores client providers/keys.
     if (hasBackend && ctx.repoRef) {
       const nextConvo: Msg[] = [...convo, { role: "user", content: q }];
