@@ -9,6 +9,7 @@ import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
 import { logActivity, recentActivity } from "./lib/activity.mjs";
 import { extractUsage, suggestEntryPoints } from "./lib/usage.mjs";
+import { summarize } from "./lib/summary.mjs";
 
 const EXPENSIVE = new Set(["/api/repo", "/api/ask", "/api/graph"]);
 
@@ -165,6 +166,16 @@ export async function handleApi(req, res, url) {
         return json(res, 200, { status: st === "ready" ? "none" : st || "building", path, symbols: [] });
       }
       return json(res, 200, { status: "ready", repo: `${r.owner}/${r.repo}`, path, symbols });
+    }
+
+    // GET /api/summary?repo=o/r&path=...  → one-line role for a file/dir (LLM, disk-cached)
+    if (p === "/api/summary" && req.method === "GET") {
+      const r = resolveRepo(url.searchParams.get("repo"));
+      const path = url.searchParams.get("path") || "";
+      if (!r) return json(res, 400, { error: "bad repo" });
+      const model = url.searchParams.get("model") || undefined;
+      const out = await summarize(r.owner, r.repo, r.dir, path, { model });
+      return json(res, 200, { repo: `${r.owner}/${r.repo}`, path, ...out });
     }
 
     // GET /api/usage?repo=o/r  → README quickstart snippets + referenced symbols

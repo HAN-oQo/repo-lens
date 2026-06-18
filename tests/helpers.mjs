@@ -5,9 +5,25 @@
 //
 //   node tests/<id>.mjs
 import { spawn } from "node:child_process";
-import { rmSync } from "node:fs";
+import { rmSync, readFileSync, existsSync } from "node:fs";
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Load .env into process.env (no dep) so spawned servers inherit ASK_URL/TOKEN/etc.
+ *  Used by units that hit the live LLM. Existing env vars win. */
+export function loadDotenv(file = ".env") {
+  if (!existsSync(file)) return false;
+  for (const raw of readFileSync(file, "utf8").split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq === -1) continue;
+    const k = line.slice(0, eq).trim();
+    let v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    if (k && process.env[k] === undefined) process.env[k] = v;
+  }
+  return true;
+}
 
 /** Start the backend on a dedicated port + data dir. Returns { base, stop }. */
 export function startServer({ port, dataDir, env = {} }) {

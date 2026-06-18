@@ -120,7 +120,7 @@ export async function buildContext(owner, repo, dir, question, openFile) {
 }
 
 /** Call the configured LLM. Anthropic if ANTHROPIC_API_KEY, else an askbot-style URL. */
-async function callLLM(system, question, ko, model) {
+export async function callLLM(system, question, ko, model) {
   const key = (process.env.ANTHROPIC_API_KEY || "").trim();
   // A claude-moreh-* model only exists on the local gateway → must go via askbot,
   // never the Anthropic API. So only use the direct Anthropic path for cloud models.
