@@ -4,7 +4,7 @@ import {
   ensureClone, repoDir, listTree, findReadme, readRepoFile, readRepoBytes,
 } from "./lib/repo.mjs";
 import { search } from "./lib/search.mjs";
-import { graphState, getGraph, requestGraph, buildFocusGraph } from "./lib/graph.mjs";
+import { graphState, getGraph, requestGraph, buildFocusGraph, buildUsageFlowGraph } from "./lib/graph.mjs";
 import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
 import { logActivity, recentActivity } from "./lib/activity.mjs";
@@ -161,6 +161,19 @@ export async function handleApi(req, res, url) {
       const rp = findReadme(paths);
       const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
       return json(res, 200, { repo: `${r.owner}/${r.repo}`, readmePath: rp, ...extractUsage(readme) });
+    }
+
+    // GET /api/usageflow?repo=o/r  → "what runs when you follow the README" subgraph
+    if (p === "/api/usageflow" && req.method === "GET") {
+      const r = resolveRepo(url.searchParams.get("repo"));
+      if (!r) return json(res, 400, { error: "bad repo" });
+      const paths = (await listTree(r.dir).catch(() => [])).map((t) => t.path);
+      const rp = findReadme(paths);
+      const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
+      const { symbols } = extractUsage(readme);
+      const fg = buildUsageFlowGraph(r.owner, r.repo, symbols);
+      if (!fg) return json(res, 200, { status: graphState(r.owner, r.repo).status === "ready" ? "none" : "building", symbols });
+      return json(res, 200, { status: "ready", symbols, ...fg });
     }
 
     // GET /api/models  → model picker options (cloud defaults + live local list)

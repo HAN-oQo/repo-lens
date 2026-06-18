@@ -48,21 +48,8 @@ export function capGraph(data, limit = 600) {
  *  filePaths should be repo-relative (from graphrag's relevantFiles / sources).
  *  Each graph node's sourceFile is also repo-relative — match against the raw
  *  path or trailing segments, since graphify stores different path forms. */
-export function extractSubgraph(graph, filePaths, depth = 1) {
-  if (!graph || !graph.nodes || !filePaths.length) return null;
-  // fast lookup: node sourceFile → set of matching node ids
-  const pathSet = new Set(filePaths.map((p) => p.replace(/^\/+/, "")));
-  const fileHit = (sf) => {
-    if (!sf) return false;
-    const s = sf.replace(/^\/+/, "");
-    if (pathSet.has(s)) return true;
-    // graphify sometimes uses basename, sometimes relative; match final segments
-    return [...pathSet].some((p) => s.endsWith(p.replace(/^\.[/\\]?/, "")));
-  };
-  // seed: all nodes whose sourceFile is one of the relevant files
-  const seed = new Set(graph.nodes.filter((n) => fileHit(n.sourceFile)).map((n) => n.id));
+function subgraphFromSeeds(graph, seed, depth) {
   if (!seed.size) return null;
-  // build adjacency
   const adj = new Map(); // nodeId → Set<neighbor id>
   for (const l of graph.links) {
     if (!adj.has(l.source)) adj.set(l.source, new Set());
@@ -70,7 +57,6 @@ export function extractSubgraph(graph, filePaths, depth = 1) {
     adj.get(l.source).add(l.target);
     adj.get(l.target).add(l.source);
   }
-  // expand
   let frontier = new Set(seed);
   for (let d = 0; d < depth; d++) {
     const next = new Set();
@@ -82,11 +68,9 @@ export function extractSubgraph(graph, filePaths, depth = 1) {
     frontier = next;
     if (!frontier.size) break;
   }
-  // filter
-  const keep = new Set(seed);
+  const keep = seed;
   const nodes = graph.nodes.filter((n) => keep.has(n.id));
   const links = graph.links.filter((l) => keep.has(l.source) && keep.has(l.target));
-  // hubs: recompute from the subgraph
   const inDeg = new Map();
   for (const l of links) inDeg.set(l.target, (inDeg.get(l.target) || 0) + 1);
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -99,6 +83,32 @@ export function extractSubgraph(graph, filePaths, depth = 1) {
     engine: graph.engine,
     capped: false, totalNodes: nodes.length, totalLinks: links.length,
   };
+}
+
+export function extractSubgraph(graph, filePaths, depth = 1) {
+  if (!graph || !graph.nodes || !filePaths.length) return null;
+  const pathSet = new Set(filePaths.map((p) => p.replace(/^\/+/, "")));
+  const fileHit = (sf) => {
+    if (!sf) return false;
+    const s = sf.replace(/^\/+/, "");
+    if (pathSet.has(s)) return true;
+    // graphify sometimes uses basename, sometimes relative; match final segments
+    return [...pathSet].some((p) => s.endsWith(p.replace(/^\.[/\\]?/, "")));
+  };
+  const seed = new Set(graph.nodes.filter((n) => fileHit(n.sourceFile)).map((n) => n.id));
+  return subgraphFromSeeds(graph, seed, depth);
+}
+
+// normalize a symbol/node name for matching: strip trailing () and a leading
+// path/qualifier, lowercase. "slugify()" → "slugify", "mod.foo" → "foo".
+const normSym = (n) => String(n || "").replace(/\(\)\s*$/, "").replace(/^.*[./]/, "").toLowerCase();
+
+/** Subgraph seeded by SYMBOL names (e.g. README usage symbols) instead of files. */
+export function extractSubgraphBySymbols(graph, names, depth = 1) {
+  if (!graph || !graph.nodes || !names || !names.length) return null;
+  const want = new Set(names.map((s) => normSym(s)));
+  const seed = new Set(graph.nodes.filter((n) => want.has(normSym(n.name)) || want.has(normSym(n.id))).map((n) => n.id));
+  return subgraphFromSeeds(graph, seed, depth);
 }
 
 /** NetworkX node-link (graphify) → our GraphData. */

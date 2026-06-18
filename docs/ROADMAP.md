@@ -91,10 +91,11 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/u1-usage.mjs` — `/api/usage?repo=slugify` returns usage snippets +
     referenced symbols incl. `slugify`. Metric: # snippets, # symbols.
   - *Result:* PASS 2026-06-18 — slugify: 4 snippets, symbols [slugify, slugifyWithCounter, reset].
-- [ ] **U2 — Usage-flow subgraph.** Map entry-point symbols → focus subgraph.
+- [x] **U2 — Usage-flow subgraph.** Map entry-point symbols → focus subgraph.
+  (`extractSubgraphBySymbols` seeds by symbol name; `buildUsageFlowGraph`; `GET /api/usageflow`.)
   - *Test:* `tests/u2-usageflow.mjs` — for slugify the usage subgraph contains `slugify`
     and its callees; node count < full. Metric: focus node count.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — slugify usage-flow = 18 nodes / 21 links (vs full 68), centers on slugify, seeded by [slugify, slugifyWithCounter, reset].
 - [ ] **U3 — Suggested entry points.** Backend returns 3–5 example prompts/flows.
   - *Test:* `tests/u3-suggest.mjs` — `/api/suggest?repo=` (or `/api/repo`) returns
     ≥3 example prompts. Metric: # suggestions.
@@ -160,6 +161,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 U2 — usage-flow subgraph seeded by README symbols (extractSubgraphBySymbols + /api/usageflow). test: tests/u2-usageflow.mjs PASS — slugify flow 18/68 nodes, centers on slugify.
 - 2026-06-18 U1 — /api/usage extracts README quickstart snippets + referenced symbols (server/lib/usage.mjs). test: tests/u1-usage.mjs PASS — slugify: 4 snippets, [slugify, slugifyWithCounter, reset].
 - 2026-06-18 A2 — removed EN/KO toggle + ko plumbing; UI English-only. test: tests/a2-no-lang-toggle.mjs PASS — "언어" gone from bundle. (Goal 2 Ask cleanup complete.)
 - 2026-06-18 A3 — backend Ask: removed the now-empty ⚙ button; model dropdown always visible (dropped repo gate). test: tests/a3-ask-clean.mjs PASS. (done out of order to fix the awkward post-A1 state — A2 still pending.)
