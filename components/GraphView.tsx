@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData, RepoRef } from "@/lib/types";
 import { apiActivity, hasBackend } from "@/lib/api";
+import { type GraphMode, modeConfig, resolveMode } from "@/lib/graphModes";
 
 // cast to any: next/dynamic + the lib's prop types are awkward together, and we
 // pass canvas-callback props that don't need compile-time checking here.
@@ -19,6 +20,30 @@ function colorFor(group: string, groups: string[]): string {
   return PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length] || "#85b7eb";
 }
 
+// Placeholder renderers for the tree / mermaid modes — they list the subgraph's
+// nodes so the mode renders without error today; V2 (call-tree) and V3 (mermaid)
+// replace these bodies with real layouts.
+function ModeStub({ kind, data, onOpenFile }: { kind: "tree" | "mermaid"; data: GraphData; onOpenFile: (p: string) => void }) {
+  const title = kind === "tree" ? "Call tree" : "Flowchart";
+  return (
+    <div className="graph-modestub" style={{ position: "absolute", inset: 0, overflow: "auto", padding: 16, color: "#cfd4df", fontSize: 12 }}>
+      <div className="dim" style={{ marginBottom: 8 }}>{title} view · {data.nodes.length} symbols (preview)</div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {data.nodes.slice(0, 200).map((n) => (
+          <li
+            key={n.id}
+            onClick={() => onOpenFile(n.sourceFile || n.id)}
+            style={{ cursor: "pointer", padding: "2px 0", fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}
+            title={n.sourceFile || n.id}
+          >
+            {kind === "tree" ? "› " : "▸ "}{n.name}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function GraphView({
   data,
   building,
@@ -28,6 +53,7 @@ export default function GraphView({
   focusGraph,
   focusLabel,
   onClearFocus,
+  mode,
 }: {
   data: GraphData | null;
   building: boolean;
@@ -37,6 +63,7 @@ export default function GraphView({
   focusGraph?: GraphData | null;
   focusLabel?: string;
   onClearFocus?: () => void;
+  mode?: GraphMode | null;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -90,6 +117,8 @@ export default function GraphView({
   // so the force engine can mutate freely without touching parent state.
   const activeData = focusGraph || data;
   const isFocus = !!focusGraph; // focus/usage-flow view: small + DAG → always label, readably
+  // V1: pick the render mode. No explicit mode → focus=DAG, overview=force (prior behavior).
+  const cfg = modeConfig(resolveMode(mode, isFocus));
   const graph = useMemo(() => {
     if (!activeData) return { nodes: [], links: [] };
     return {
@@ -158,7 +187,13 @@ export default function GraphView({
             </div>
           </div>
         )}
-        {activeData && activeData.nodes.length > 0 && (
+        {activeData && activeData.nodes.length > 0 && cfg.renderer === "tree" && (
+          <ModeStub kind="tree" data={activeData} onOpenFile={onOpenFile} />
+        )}
+        {activeData && activeData.nodes.length > 0 && cfg.renderer === "mermaid" && (
+          <ModeStub kind="mermaid" data={activeData} onOpenFile={onOpenFile} />
+        )}
+        {activeData && activeData.nodes.length > 0 && cfg.renderer === "force" && (
           <ForceGraph2D
             ref={fgRef as any}
             graphData={graph as any}
@@ -169,7 +204,7 @@ export default function GraphView({
             nodeVal={(n: any) => n.val}
             nodeLabel={(n: any) => `${n.id}  ·  in ${n.inDeg} / out ${n.outDeg}`}
             cooldownTicks={120}
-            dagMode={focusGraph ? "lr" : undefined}
+            dagMode={cfg.dag ? "lr" : undefined}
             dagLevelDistance={110}
             onDagError={() => {}}
             onEngineStop={() => fgRef.current?.zoomToFit?.(400, 60)}

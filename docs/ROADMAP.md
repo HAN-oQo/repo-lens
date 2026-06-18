@@ -194,12 +194,16 @@ let the user pick. Left rail gains viz entries (Force overview · DAG flow · Ca
 step-list · Mermaid flowchart) next to File · Search. Each viz opens with **Overview** +
 **Quickstart** tabs; asking *"show X as a DAG / call tree / flowchart"* spawns a **new
 tab** rendering that query's focus subgraph in the chosen visualization.
-- [ ] **V1 — Pluggable graph render modes.** One graph component renders a `GraphData`
-  in `mode ∈ {force, dag, tree, mermaid}` (mode chosen via V4's left-rail entries, not a
-  second in-panel switcher). Fold the existing force-overview + dag-flow (U4b) behind it.
+- [x] **V1 — Pluggable graph render modes.** One graph component renders a `GraphData`
+  in `mode ∈ {force, dag, tree, mermaid}`. (`lib/graphModes.ts` pure registry — `modeConfig`
+  maps mode→{renderer, dag}, `resolveMode` folds prior behavior: no mode → focus=dag,
+  overview=force. GraphView takes a `mode` prop, dispatches force/tree/mermaid; tree+mermaid
+  are `ModeStub` placeholders filled by V2/V3.)
   - *Test:* `tests/v1-modes.mjs` — component accepts a `mode` prop and branches to each
     renderer; the same data renders in every mode without error. Metric: # modes.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — 4 modes, 4/4 resolve to a valid renderer (force covers
+    force+dag, tree, mermaid); GraphView dispatch + cfg.dag→dagMode asserted; build/TS green.
+    Test 15/15. (Canvas render confirmed manually.)
 - [ ] **V2 — Call-tree / step-list view.** Pure `toCallTree(graph, root?)` → ordered,
   numbered, nested steps from the entry node (follow directed links, break cycles);
   component renders indented rows, click → open `sourceFile`.
@@ -249,6 +253,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 V1 — pluggable graph render modes: lib/graphModes.ts registry (force/dag/tree/mermaid → renderer+dag) + GraphView mode prop dispatch; force/dag fold in via resolveMode, tree/mermaid are ModeStub placeholders for V2/V3. test: tests/v1-modes.mjs PASS 15/15 — 4 modes, build green. (starts Goal 6.)
 - 2026-06-18 P1 — viewed repo persists to URL (?repo=&ref=) + localStorage and auto-restores on mount (lib/persist.ts pure helpers + two page effects). test: tests/p1-persist.mjs PASS 11/11 — round-trip equality across 3 refs, build green. (Goal 5 P1; P2 tabs after Goal 6 tab model.)
 - 2026-06-18 D4 — Structure drill-down: dir/file/function each lazily render a one-line role (apiSummary) on expand; files also list functions/classes (apiFileInfo). test: tests/d4-drilldown.mjs PASS 12/12 — 3/3 levels, bundle references both endpoints, build green. (Goal 4 directory-map complete; visual manual.)
 - 2026-06-18 D3b — /api/summary?symbol= returns a per-function one-line role, body sliced from the D2 sourceLocation, cached under path#symbol (file summary reuses cached fn summaries as hints). test: tests/d3b-fn-summary.mjs PASS 11/11 — slugify() first=21830ms→cached=28ms (780x), distinct from file summary.
