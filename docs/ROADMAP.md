@@ -85,11 +85,12 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Result:* PASS 2026-06-18 — ⚙ gated behind !hasBackend; model picker condition dropped the `ctx.repoRef` gate (always visible); build green.
 
 ## Goal 3 — Usage-driven graph (README flow first, with examples)
-- [ ] **U1 — Extract README usage.** Backend pulls quickstart code blocks + referenced
-  symbols from the README.
+- [x] **U1 — Extract README usage.** Backend pulls quickstart code blocks + referenced
+  symbols from the README. (`server/lib/usage.mjs` `extractUsage`/`referencedSymbols`;
+  `GET /api/usage?repo=`.)
   - *Test:* `tests/u1-usage.mjs` — `/api/usage?repo=slugify` returns usage snippets +
     referenced symbols incl. `slugify`. Metric: # snippets, # symbols.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — slugify: 4 snippets, symbols [slugify, slugifyWithCounter, reset].
 - [ ] **U2 — Usage-flow subgraph.** Map entry-point symbols → focus subgraph.
   - *Test:* `tests/u2-usageflow.mjs` — for slugify the usage subgraph contains `slugify`
     and its callees; node count < full. Metric: focus node count.
@@ -159,6 +160,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 U1 — /api/usage extracts README quickstart snippets + referenced symbols (server/lib/usage.mjs). test: tests/u1-usage.mjs PASS — slugify: 4 snippets, [slugify, slugifyWithCounter, reset].
 - 2026-06-18 A2 — removed EN/KO toggle + ko plumbing; UI English-only. test: tests/a2-no-lang-toggle.mjs PASS — "언어" gone from bundle. (Goal 2 Ask cleanup complete.)
 - 2026-06-18 A3 — backend Ask: removed the now-empty ⚙ button; model dropdown always visible (dropped repo gate). test: tests/a3-ask-clean.mjs PASS. (done out of order to fix the awkward post-A1 state — A2 still pending.)
 - 2026-06-18 A1 — Ask settings hide provider/URL/API-key in backend mode (only inline model picker). test: tests/a1-ask-ui.mjs PASS — 3 controls gated behind !hasBackend.

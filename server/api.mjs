@@ -8,6 +8,7 @@ import { graphState, getGraph, requestGraph, buildFocusGraph } from "./lib/graph
 import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
 import { logActivity, recentActivity } from "./lib/activity.mjs";
+import { extractUsage } from "./lib/usage.mjs";
 
 const EXPENSIVE = new Set(["/api/repo", "/api/ask", "/api/graph"]);
 
@@ -150,6 +151,16 @@ export async function handleApi(req, res, url) {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
       return json(res, 200, { graph: graphState(r.owner, r.repo) });
+    }
+
+    // GET /api/usage?repo=o/r  → README quickstart snippets + referenced symbols
+    if (p === "/api/usage" && req.method === "GET") {
+      const r = resolveRepo(url.searchParams.get("repo"));
+      if (!r) return json(res, 400, { error: "bad repo" });
+      const paths = (await listTree(r.dir).catch(() => [])).map((t) => t.path);
+      const rp = findReadme(paths);
+      const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
+      return json(res, 200, { repo: `${r.owner}/${r.repo}`, readmePath: rp, ...extractUsage(readme) });
     }
 
     // GET /api/models  → model picker options (cloud defaults + live local list)
