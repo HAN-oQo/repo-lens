@@ -204,12 +204,17 @@ tab** rendering that query's focus subgraph in the chosen visualization.
   - *Result:* PASS 2026-06-18 — 4 modes, 4/4 resolve to a valid renderer (force covers
     force+dag, tree, mermaid); GraphView dispatch + cfg.dag→dagMode asserted; build/TS green.
     Test 15/15. (Canvas render confirmed manually.)
-- [ ] **V2 — Call-tree / step-list view.** Pure `toCallTree(graph, root?)` → ordered,
+- [x] **V2 — Call-tree / step-list view.** Pure `toCallTree(graph, root?)` → ordered,
   numbered, nested steps from the entry node (follow directed links, break cycles);
-  component renders indented rows, click → open `sourceFile`.
+  component renders indented rows, click → open `sourceFile`. (`lib/callTree.ts`
+  `toCallTree`/`flattenCallTree` — entry picked by explicit root or in-deg-0/most-callees,
+  ancestor edges become `cycle` leaves, depth/total capped; `CallTreeView` in GraphView
+  renders the tree mode.)
   - *Test:* `tests/v2-calltree.mjs` — `toCallTree` on the slugify usage subgraph yields
     a tree rooted at `slugify` with ordered children, no infinite loop. Metric: depth, node count.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — slugify call-tree rooted at slugify, 4 steps / depth 1 (1-hop
+    usage subgraph), pre-order numbered; cyclic graph a→b→c→a terminates (count=4, ↩ leaf);
+    GraphView wiring asserted; build green. Test 12/12.
 - [ ] **V3 — Mermaid flowchart view.** Add `mermaid` dep; pure `toMermaid(graph)` →
   `flowchart LR` string (sanitized ids, directed edges); component renders it, node click
   → open file.
@@ -253,6 +258,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 V2 — call-tree/step-list: pure toCallTree(graph, root?) → ordered numbered nested steps, cycle-safe + capped (lib/callTree.ts); CallTreeView renders the tree mode. test: tests/v2-calltree.mjs PASS 12/12 — slugify rooted correctly, cyclic graph terminates, build green.
 - 2026-06-18 V1 — pluggable graph render modes: lib/graphModes.ts registry (force/dag/tree/mermaid → renderer+dag) + GraphView mode prop dispatch; force/dag fold in via resolveMode, tree/mermaid are ModeStub placeholders for V2/V3. test: tests/v1-modes.mjs PASS 15/15 — 4 modes, build green. (starts Goal 6.)
 - 2026-06-18 P1 — viewed repo persists to URL (?repo=&ref=) + localStorage and auto-restores on mount (lib/persist.ts pure helpers + two page effects). test: tests/p1-persist.mjs PASS 11/11 — round-trip equality across 3 refs, build green. (Goal 5 P1; P2 tabs after Goal 6 tab model.)
 - 2026-06-18 D4 — Structure drill-down: dir/file/function each lazily render a one-line role (apiSummary) on expand; files also list functions/classes (apiFileInfo). test: tests/d4-drilldown.mjs PASS 12/12 — 3/3 levels, bundle references both endpoints, build green. (Goal 4 directory-map complete; visual manual.)

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData, RepoRef } from "@/lib/types";
 import { apiActivity, hasBackend } from "@/lib/api";
 import { type GraphMode, modeConfig, resolveMode } from "@/lib/graphModes";
+import { toCallTree, flattenCallTree } from "@/lib/callTree";
 
 // cast to any: next/dynamic + the lib's prop types are awkward together, and we
 // pass canvas-callback props that don't need compile-time checking here.
@@ -20,23 +21,46 @@ function colorFor(group: string, groups: string[]): string {
   return PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length] || "#85b7eb";
 }
 
-// Placeholder renderers for the tree / mermaid modes — they list the subgraph's
-// nodes so the mode renders without error today; V2 (call-tree) and V3 (mermaid)
-// replace these bodies with real layouts.
-function ModeStub({ kind, data, onOpenFile }: { kind: "tree" | "mermaid"; data: GraphData; onOpenFile: (p: string) => void }) {
-  const title = kind === "tree" ? "Call tree" : "Flowchart";
+// Call-tree / step-list renderer (V2): ordered, numbered, indented steps from the
+// entry node via the pure toCallTree(). Click a row → open its source file.
+function CallTreeView({ data, onOpenFile }: { data: GraphData; onOpenFile: (p: string) => void }) {
+  const { tree, count, depth } = useMemo(() => toCallTree(data), [data]);
+  const rows = useMemo(() => flattenCallTree(tree), [tree]);
+  if (!tree) {
+    return <div className="graph-modestub" style={{ position: "absolute", inset: 0, padding: 16, color: "#cfd4df", fontSize: 12 }}>No directed flow to lay out as a call tree.</div>;
+  }
+  return (
+    <div className="call-tree" style={{ position: "absolute", inset: 0, overflow: "auto", padding: 14, color: "#cfd4df", fontSize: 12, fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
+      <div className="dim" style={{ marginBottom: 8, fontFamily: "system-ui, sans-serif" }}>
+        Call tree from <b>{tree.name}</b> · {count} step{count === 1 ? "" : "s"} · depth {depth}
+      </div>
+      {rows.map((n) => (
+        <div
+          key={n.step + ":" + n.id}
+          className="ct-row"
+          style={{ paddingLeft: 6 + n.depth * 16, cursor: "pointer", padding: "2px 0", opacity: n.cycle ? 0.6 : 1 }}
+          onClick={() => onOpenFile(n.sourceFile || n.id)}
+          title={n.sourceFile || n.id}
+        >
+          <span className="ct-step" style={{ opacity: 0.5, marginRight: 6 }}>{n.step}.</span>
+          {n.cycle && <span title="cycle — already visited" style={{ marginRight: 3 }}>↩</span>}
+          {n.name}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Placeholder renderer for the mermaid mode — lists nodes so the mode renders
+// without error today; V3 replaces this with a real flowchart.
+function ModeStub({ kind, data, onOpenFile }: { kind: "mermaid"; data: GraphData; onOpenFile: (p: string) => void }) {
   return (
     <div className="graph-modestub" style={{ position: "absolute", inset: 0, overflow: "auto", padding: 16, color: "#cfd4df", fontSize: 12 }}>
-      <div className="dim" style={{ marginBottom: 8 }}>{title} view · {data.nodes.length} symbols (preview)</div>
+      <div className="dim" style={{ marginBottom: 8 }}>Flowchart view · {data.nodes.length} symbols (preview)</div>
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {data.nodes.slice(0, 200).map((n) => (
-          <li
-            key={n.id}
-            onClick={() => onOpenFile(n.sourceFile || n.id)}
-            style={{ cursor: "pointer", padding: "2px 0", fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}
-            title={n.sourceFile || n.id}
-          >
-            {kind === "tree" ? "› " : "▸ "}{n.name}
+          <li key={n.id} onClick={() => onOpenFile(n.sourceFile || n.id)} style={{ cursor: "pointer", padding: "2px 0", fontFamily: "ui-monospace, Menlo, Consolas, monospace" }} title={n.sourceFile || n.id}>
+            ▸ {n.name}
           </li>
         ))}
       </ul>
@@ -188,7 +212,7 @@ export default function GraphView({
           </div>
         )}
         {activeData && activeData.nodes.length > 0 && cfg.renderer === "tree" && (
-          <ModeStub kind="tree" data={activeData} onOpenFile={onOpenFile} />
+          <CallTreeView data={activeData} onOpenFile={onOpenFile} />
         )}
         {activeData && activeData.nodes.length > 0 && cfg.renderer === "mermaid" && (
           <ModeStub kind="mermaid" data={activeData} onOpenFile={onOpenFile} />
