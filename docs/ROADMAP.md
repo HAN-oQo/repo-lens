@@ -134,6 +134,23 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ---
 
+## Goal 5 — Session persistence (don't lose your place on reload)
+- [ ] **P1 — Restore the viewed repo on reload.** A page refresh currently drops the
+  loaded repo back to the empty state. Persist the loaded repo (owner/repo/branch) to
+  the URL (`?repo=owner/repo&ref=branch`) + localStorage; on mount, auto-load it so a
+  refresh keeps you on the same repo (until the user clears storage/cache or loads a new
+  repo). Pure helpers `serializeRepoState`/`parseRepoState` for testability.
+  - *Test:* `tests/p1-persist.mjs` — round-trip a RepoRef through serialize→query/string→parse
+    and assert equality; source assertion that a mount effect reads the saved repo and calls
+    `loadRepo`. Metric: round-trip equality.
+  - *Result:* (pending)
+- [ ] **P2 — Restore open tabs + active tab on reload.** Persist the open file tabs +
+  active tab per repo (localStorage, keyed by owner/repo); restore them after the repo
+  loads so refresh keeps your open files, not just the repo.
+  - *Test:* `tests/p2-tabs.mjs` — tab list serialize/parse round-trips; source assertion
+    that tabs are restored for the matching repo on load. Metric: tabs restored.
+  - *Result:* (pending)
+
 ## Backlog / later (not localhost-blocking)
 - CE deploy of all the above (`docs/repo-lens-ce-deploy.html`).
 - Public Pages demo flip to the CE backend.
