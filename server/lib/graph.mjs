@@ -1,7 +1,7 @@
 // Knowledge-graph state + background build orchestration (graphify, code-only).
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { graphifyAvailable, buildGraphJson, toGraphData, capGraph, extractSubgraph, extractSubgraphBySymbols } from "./graphify.mjs";
+import { graphifyAvailable, buildGraphJson, toGraphData, capGraph, extractSubgraph, extractSubgraphBySymbols, symbolsForFile } from "./graphify.mjs";
 import { logActivity } from "./activity.mjs";
 import { run } from "./util.mjs";
 
@@ -63,6 +63,14 @@ export function buildFocusGraph(owner, repo, filePaths) {
   const full = getFullGraph(owner, repo);
   if (!full || !filePaths.length) return null;
   return extractSubgraph(full, filePaths, 1); // 1-hop neighbors
+}
+
+/** A file's functions/classes (+ locations) from the full cached graph, or null
+ *  if the graph isn't ready yet. */
+export function fileInfo(owner, repo, path) {
+  const full = getFullGraph(owner, repo);
+  if (!full) return null;
+  return symbolsForFile(full, path);
 }
 
 /** The "what runs when you follow the README" subgraph, seeded by usage symbols. */

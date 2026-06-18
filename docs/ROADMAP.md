@@ -129,11 +129,15 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
     `dirStats` size badges, opens files); +1 activity-bar button (📂) → `leftView="structure"`;
     4/4 page-wiring points (import, state union, button, sidebar render); build green. Test 9/9.
     (Visual layout confirmed manually.) D2–D4 hang symbols/roles/drill-down off this view.
-- [ ] **D2 — Per-file symbol list.** `/api/fileinfo?repo=&path=` returns a file's
-  functions/classes (from graph nodes) + locations.
+- [x] **D2 — Per-file symbol list.** `/api/fileinfo?repo=&path=` returns a file's
+  functions/classes (from graph nodes) + locations. (`symbolsForFile` pure in
+  graphify.mjs — drops the file-level node, classifies `name()`→function /
+  PascalCase→class, parses `L<n>`; `fileInfo` wraps the cached full graph; route in api.mjs.)
   - *Test:* `tests/d2-fileinfo.mjs` — for slugify `index.js`, returns `slugify`,
     `decamelize`, etc. with locations. Metric: # symbols.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — slugify index.js → 5 symbols [decamelize, removeMootSeparators,
+    buildPatternSlug, slugify, slugifyWithCounter]; slugify→function@L46; file node excluded;
+    unknown path → empty (no error). Test 9/9.
 - [ ] **D3 — Summaries (dir/file/function), cached.** Bottom-up LLM summaries, cached to
   disk keyed by sha, lazy/rate-limited.
   - *Test:* `tests/d3-summary.mjs` — `/api/summary?repo=&path=` returns a one-line role;
@@ -228,6 +232,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 D2 — /api/fileinfo?repo=&path= returns a file's functions/classes + locations from the symbol graph (symbolsForFile in graphify.mjs + fileInfo in graph.mjs). test: tests/d2-fileinfo.mjs PASS 9/9 — slugify index.js = 5 symbols, slugify→function@L46. (Goal 4 D2; D3 adds LLM role summaries, D4 the drill-down UI.)
 - 2026-06-18 D1 — new 📂 Structure left view: Finder-like directory map (StructureView + dirStats per-dir size badges), activity-bar button + sidebar branch wired to leftView="structure". test: tests/d1-structure.mjs PASS 9/9 — 4/4 wiring points, build green. (starts Goal 4 — directory map; D2–D4 add symbols/roles/drill-down.)
 - 2026-06-18 U4b — focus/usage-flow graph laid out as a left→right DAG (dagMode=lr + onDagError) so call order reads as a flow; overview stays force. test: tests/u4b-dag.mjs PASS. (added per user feedback — force blob didn't read as a flow.)
 - 2026-06-18 U4 — graph tab defaults to the README usage-flow subgraph (openGraph→apiUsageFlow→focus); "Full overview" switches. test: tests/u4-default-flow.mjs PASS — default 18 vs overview 68.

@@ -4,7 +4,7 @@ import {
   ensureClone, repoDir, listTree, findReadme, readRepoFile, readRepoBytes,
 } from "./lib/repo.mjs";
 import { search } from "./lib/search.mjs";
-import { graphState, getGraph, requestGraph, buildFocusGraph, buildUsageFlowGraph } from "./lib/graph.mjs";
+import { graphState, getGraph, requestGraph, buildFocusGraph, buildUsageFlowGraph, fileInfo } from "./lib/graph.mjs";
 import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
 import { logActivity, recentActivity } from "./lib/activity.mjs";
@@ -151,6 +151,20 @@ export async function handleApi(req, res, url) {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
       return json(res, 200, { graph: graphState(r.owner, r.repo) });
+    }
+
+    // GET /api/fileinfo?repo=o/r&path=...  → a file's functions/classes + locations
+    if (p === "/api/fileinfo" && req.method === "GET") {
+      const r = resolveRepo(url.searchParams.get("repo"));
+      const path = url.searchParams.get("path") || "";
+      if (!r) return json(res, 400, { error: "bad repo" });
+      if (!path) return json(res, 400, { error: "no path" });
+      const symbols = fileInfo(r.owner, r.repo, path);
+      if (symbols === null) {
+        const st = graphState(r.owner, r.repo).status;
+        return json(res, 200, { status: st === "ready" ? "none" : st || "building", path, symbols: [] });
+      }
+      return json(res, 200, { status: "ready", repo: `${r.owner}/${r.repo}`, path, symbols });
     }
 
     // GET /api/usage?repo=o/r  → README quickstart snippets + referenced symbols

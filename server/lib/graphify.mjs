@@ -111,6 +111,39 @@ export function extractSubgraphBySymbols(graph, names, depth = 1) {
   return subgraphFromSeeds(graph, seed, depth);
 }
 
+/** A file's defined symbols (functions/classes) from the graph, sorted by line.
+ *  graphify emits one node per file (label === basename) plus one per symbol;
+ *  we drop the file node and classify the rest. Pure — operates on GraphData. */
+export function symbolsForFile(graph, path) {
+  if (!graph || !graph.nodes || !path) return [];
+  const want = String(path).replace(/^\/+/, "");
+  const base = want.split("/").pop();
+  const hit = (sf) => {
+    if (!sf) return false;
+    const s = String(sf).replace(/^\/+/, "");
+    return s === want || s.endsWith("/" + want) || want.endsWith("/" + s);
+  };
+  const out = [];
+  for (const n of graph.nodes) {
+    if (!hit(n.sourceFile)) continue;
+    const raw = String(n.name || "");
+    if (raw === base) continue; // the file-level node itself
+    const isFn = /\(\)\s*$/.test(raw);
+    const name = raw.replace(/\(\)\s*$/, "").trim();
+    if (!name) continue;
+    const m = /^L(\d+)/.exec(String(n.sourceLocation || ""));
+    out.push({
+      id: n.id,
+      name,
+      kind: isFn ? "function" : /^[A-Z]/.test(name) ? "class" : "variable",
+      line: m ? Number(m[1]) : null,
+      location: n.sourceLocation || null,
+    });
+  }
+  out.sort((a, b) => (a.line ?? Infinity) - (b.line ?? Infinity));
+  return out;
+}
+
 /** NetworkX node-link (graphify) → our GraphData. */
 export function toGraphData(json) {
   const rawNodes = json.nodes || [];
