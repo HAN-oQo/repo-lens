@@ -147,13 +147,13 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Result:* PASS 2026-06-18 — slugify index.js: first=11362ms (LLM, 1 sentence role) →
     cached=27ms (421x faster), cached:true, identical. (Live askbot via .env ASK_URL; test
     uses new `loadDotenv` helper.) Test 7/7.
-- [ ] **D3b — Per-function summaries.** Extend `/api/summary` to accept a symbol (e.g.
-  `&symbol=slugify` or `path#symbol`) → one-line role for that function, sliced from its
-  `sourceLocation` (D2) ± a few lines, cached like D3. Bottom-up: file summary may reuse
-  cached function summaries.
+- [x] **D3b — Per-function summaries.** `/api/summary` accepts `&symbol=` → one-line role
+  for that function, body sliced from its D2 `sourceLocation` ± 40 lines, cached under a
+  `path#symbol` key. Bottom-up: file summary surfaces cached per-fn summaries as hints.
   - *Test:* `tests/d3b-fn-summary.mjs` — `/api/summary?repo=&path=index.js&symbol=slugify`
     returns a one-line role mentioning the slug/string behavior; second call cache-fast. Metric: first vs cached ms.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — slugify(): first=21830ms (LLM) → cached=28ms (780x), one
+    line, distinct from the file summary, symbol echoed. Test 11/11.
 - [ ] **D4 — Drill-down UI.** dir role → file roles → function roles, expandable.
   - *Test:* `tests/d4-drilldown.mjs` — source/bundle check: structure view renders role
     at each level from `/api/fileinfo` + `/api/summary`.
@@ -243,6 +243,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 D3b — /api/summary?symbol= returns a per-function one-line role, body sliced from the D2 sourceLocation, cached under path#symbol (file summary reuses cached fn summaries as hints). test: tests/d3b-fn-summary.mjs PASS 11/11 — slugify() first=21830ms→cached=28ms (780x), distinct from file summary.
 - 2026-06-18 D3 — /api/summary returns a lazy, disk-cached (keyed by sha) one-line LLM role for a file/dir (server/lib/summary.mjs; callLLM exported from graphrag; new loadDotenv test helper). test: tests/d3-summary.mjs PASS 7/7 — slugify index.js first=11362ms→cached=27ms (421x). (Goal 4 D3; per-function summaries split out as D3b.)
 - 2026-06-18 D2 — /api/fileinfo?repo=&path= returns a file's functions/classes + locations from the symbol graph (symbolsForFile in graphify.mjs + fileInfo in graph.mjs). test: tests/d2-fileinfo.mjs PASS 9/9 — slugify index.js = 5 symbols, slugify→function@L46. (Goal 4 D2; D3 adds LLM role summaries, D4 the drill-down UI.)
 - 2026-06-18 D1 — new 📂 Structure left view: Finder-like directory map (StructureView + dirStats per-dir size badges), activity-bar button + sidebar branch wired to leftView="structure". test: tests/d1-structure.mjs PASS 9/9 — 4/4 wiring points, build green. (starts Goal 4 — directory map; D2–D4 add symbols/roles/drill-down.)

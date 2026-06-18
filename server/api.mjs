@@ -174,7 +174,8 @@ export async function handleApi(req, res, url) {
       const path = url.searchParams.get("path") || "";
       if (!r) return json(res, 400, { error: "bad repo" });
       const model = url.searchParams.get("model") || undefined;
-      const out = await summarize(r.owner, r.repo, r.dir, path, { model });
+      const symbol = url.searchParams.get("symbol") || undefined;
+      const out = await summarize(r.owner, r.repo, r.dir, path, { model, symbol });
       return json(res, 200, { repo: `${r.owner}/${r.repo}`, path, ...out });
     }
 

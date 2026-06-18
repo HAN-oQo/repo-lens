@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { DATA_DIR, run } from "./util.mjs";
 import { readRepoFile, listTree } from "./repo.mjs";
 import { callLLM } from "./graphrag.mjs";
+import { fileInfo } from "./graph.mjs";
 import { logActivity } from "./activity.mjs";
 
 const cacheFile = (owner, repo) => join(DATA_DIR, "cache", `${owner}_${repo}.summaries.json`);
@@ -69,17 +70,44 @@ function childrenOf(paths, normDir) {
   return { files: [...files], dirs: [...dirs] };
 }
 
-async function buildPrompt(owner, repo, dir, norm, cache) {
+const FN_WINDOW = 40; // lines of a function's body fed to the LLM
+
+async function buildPrompt(owner, repo, dir, norm, cache, symbol) {
   const paths = (await listTree(dir).catch(() => [])).map((t) => t.path);
   const isFile = paths.includes(norm);
+
+  // function/symbol: slice its body from the D2 sourceLocation (± a window)
+  if (symbol && isFile) {
+    const syms = fileInfo(owner, repo, norm) || [];
+    const hit = syms.find((s) => s.name === symbol) || syms.find((s) => s.name.toLowerCase() === symbol.toLowerCase());
+    const f = await readRepoFile(dir, norm).catch(() => null);
+    const text = f && !f.tooLarge ? f.text || "" : "";
+    const lines = text.split("\n");
+    const start = hit?.line ? Math.max(0, hit.line - 1) : 0;
+    const snippet = hit?.line ? lines.slice(start, start + FN_WINDOW).join("\n") : text.slice(0, FILE_CAP);
+    return {
+      kind: "function",
+      question:
+        `In ONE concise sentence, describe what the \`${symbol}\` ${hit?.kind || "symbol"} in \`${norm}\` does ` +
+        `(its role/behavior). No preamble, just the sentence.\n\n=== ${norm}${hit?.location ? ":" + hit.location : ""} ===\n${snippet || "(not found)"}`,
+    };
+  }
+
   if (isFile) {
     const f = await readRepoFile(dir, norm).catch(() => null);
     const body = f && !f.tooLarge ? (f.text || "").slice(0, FILE_CAP) : "";
+    // bottom-up: surface any cached per-function summaries for this file as hints
+    const fnHints = Object.entries(cache.summaries)
+      .filter(([k]) => k.startsWith(norm + "#"))
+      .map(([k, v]) => `- ${k.slice(norm.length + 1)}: ${v}`)
+      .join("\n");
     return {
       kind: "file",
       question:
         `In ONE concise sentence, describe the role of the file \`${norm}\` in ${owner}/${repo} ` +
-        `(what it does / what it's for). No preamble, just the sentence.\n\n=== ${norm} ===\n${body || "(empty or binary)"}`,
+        `(what it does / what it's for). No preamble, just the sentence.\n\n` +
+        (fnHints ? `Known functions:\n${fnHints}\n\n` : "") +
+        `=== ${norm} ===\n${body || "(empty or binary)"}`,
     };
   }
   // directory (or repo root when norm === ""): bottom-up from immediate children
@@ -96,31 +124,33 @@ async function buildPrompt(owner, repo, dir, norm, cache) {
   };
 }
 
-/** Lazily compute (or return cached) a one-line role for a file/dir path. */
-export async function summarize(owner, repo, dir, path, { model, sha } = {}) {
+/** Lazily compute (or return cached) a one-line role for a file/dir/function path.
+ *  Pass `symbol` to summarize a single function/symbol within `path`. */
+export async function summarize(owner, repo, dir, path, { model, sha, symbol } = {}) {
   const head = sha || (await headSha(dir));
   const cache = loadCache(owner, repo);
   if (cache.sha !== head) { cache.sha = head; cache.summaries = {}; }
   const norm = String(path || "").replace(/^\/+|\/+$/g, "");
+  const ckey = symbol ? `${norm}#${symbol}` : norm; // cache key (per-function distinct)
 
-  if (cache.summaries[norm]) return { summary: cache.summaries[norm], cached: true, sha: head };
+  if (cache.summaries[ckey]) return { summary: cache.summaries[ckey], cached: true, sha: head, symbol };
 
-  const key = `${owner}/${repo}@${head}:${norm}`;
+  const key = `${owner}/${repo}@${head}:${ckey}`;
   if (inflight.has(key)) return inflight.get(key);
 
   const p = (async () => {
     await slot();
     try {
-      const { kind, question } = await buildPrompt(owner, repo, dir, norm, cache);
+      const { kind, question } = await buildPrompt(owner, repo, dir, norm, cache, symbol);
       const system =
         "You write terse, factual one-line role descriptions for code in a repository. " +
         "Reply with a single sentence and nothing else.";
       const answer = await callLLM(system, question, false, model);
       const summary = oneLine(answer) || `${kind} in ${owner}/${repo}`;
-      cache.summaries[norm] = summary;
+      cache.summaries[ckey] = summary;
       saveCache(owner, repo, cache);
-      logActivity(`summary: ${norm || "/"} — "${summary.slice(0, 60)}"`, `${owner}/${repo}`);
-      return { summary, cached: false, sha: head };
+      logActivity(`summary: ${ckey || "/"} — "${summary.slice(0, 60)}"`, `${owner}/${repo}`);
+      return { summary, cached: false, sha: head, symbol };
     } finally {
       release();
     }
