@@ -89,6 +89,7 @@ export default function GraphView({
   // When focusGraph is active, render that instead of the overview. Clone
   // so the force engine can mutate freely without touching parent state.
   const activeData = focusGraph || data;
+  const isFocus = !!focusGraph; // focus/usage-flow view: small + DAG → always label, readably
   const graph = useMemo(() => {
     if (!activeData) return { nodes: [], links: [] };
     return {
@@ -169,7 +170,7 @@ export default function GraphView({
             nodeLabel={(n: any) => `${n.id}  ·  in ${n.inDeg} / out ${n.outDeg}`}
             cooldownTicks={120}
             dagMode={focusGraph ? "lr" : undefined}
-            dagLevelDistance={70}
+            dagLevelDistance={110}
             onDagError={() => {}}
             onEngineStop={() => fgRef.current?.zoomToFit?.(400, 60)}
             onNodeClick={(n: any) => onOpenFile(n.sourceFile || n.id)}
@@ -200,13 +201,26 @@ export default function GraphView({
                 ctx.strokeStyle = "#fff";
                 ctx.stroke();
               }
-              // labels: show for big nodes or when zoomed in / hovered neighborhood
-              if (scale > 2.2 || node.val >= 4 || node.id === hover || (neighbors && neighbors.has(node.id))) {
-                const label = node.name;
-                ctx.font = `${Math.max(3, 10 / scale + 2)}px var(--mono)`;
-                ctx.fillStyle = dim ? "rgba(230,232,238,0.3)" : "#cdd2dc";
+              // labels: always in the focus/flow view (it's small), else only big/zoomed/hovered.
+              // Drawn with a background pill + constant screen-size font so they don't get
+              // lost behind nodes/edges.
+              const show = isFocus || scale > 1.8 || node.val >= 4 || node.id === hover || (neighbors && neighbors.has(node.id));
+              const label = String(node.name || "");
+              if (show && label) {
+                const fontSize = Math.max(3, 11 / scale); // ~constant ~11px on screen
+                ctx.font = `${fontSize}px ui-monospace, Menlo, Consolas, monospace`;
                 ctx.textAlign = "center";
-                ctx.fillText(label, node.x, node.y + r + 8 / scale);
+                ctx.textBaseline = "middle";
+                const tw = ctx.measureText(label).width;
+                const padX = fontSize * 0.4;
+                const ly = node.y + r + fontSize * 1.1; // below the node
+                ctx.globalAlpha = dim ? 0.25 : 0.95;
+                ctx.fillStyle = "rgba(18,21,28,0.85)"; // pill behind text
+                ctx.fillRect(node.x - tw / 2 - padX, ly - fontSize * 0.6, tw + padX * 2, fontSize * 1.2);
+                ctx.globalAlpha = dim ? 0.4 : 1;
+                ctx.fillStyle = "#e6e8ee";
+                ctx.fillText(label, node.x, ly);
+                ctx.textBaseline = "alphabetic";
               }
               ctx.globalAlpha = 1;
             }}

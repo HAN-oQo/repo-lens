@@ -12,6 +12,10 @@ h.check("tolerates cycles via onDagError", /onDagError=\{/.test(src));
 h.check("sets a dag level distance", /dagLevelDistance=/.test(src));
 h.check("directional arrows present (call direction)", src.includes("linkDirectionalArrowLength"));
 h.check("overview (no focus) → no dagMode (force layout)", src.includes('focusGraph ? "lr" : undefined'));
+// readability fix: labels always shown in focus + drawn on a background pill
+h.check("labels always shown in focus view", /const show = isFocus \|\|/.test(src));
+h.check("labels drawn on a background pill (fillRect behind text)", /pill behind text/.test(src) && src.includes("ctx.fillRect("));
+h.check("wider DAG level spacing", /dagLevelDistance=\{1\d\d\}/.test(src));
 
-console.log("\n  metric: DAG (lr) layout enabled for focus/usage-flow only; force layout for overview");
+console.log("\n  metric: DAG (lr) layout for focus only; labels always-on with bg pill; level distance 110");
 h.done();

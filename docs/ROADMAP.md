@@ -116,7 +116,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/u4b-dag.mjs` — source assertion: GraphView sets `dagMode="lr"` when
     `focusGraph` is active and provides `onDagError`; overview (no focus) uses no dagMode.
     Build green. (Visual layout confirmed manually.) Metric: dag enabled for focus only.
-  - *Result:* PASS 2026-06-18 — focus graph uses `dagMode="lr"` + `onDagError` + `dagLevelDistance=70`; overview unchanged (force); build green. (Left→right flow confirmed manually.)
+  - *Result:* PASS 2026-06-18 — focus graph uses `dagMode="lr"` + `onDagError`; overview unchanged (force); build green. Readability follow-up: labels always shown in focus, drawn on a background pill at ~constant screen size, `dagLevelDistance=110` for spacing (was overlapping). Test 8/8. (Left→right flow confirmed manually.)
 - [ ] **U5 — Example chips in the UI.** Clickable suggested entry points → focus that flow.
   - *Test:* `tests/u5-chips.mjs` — built bundle renders chips from `/api/suggest`; clicking
     calls focus (source/bundle check + endpoint smoke).
