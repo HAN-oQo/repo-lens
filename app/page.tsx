@@ -672,7 +672,7 @@ export default function Home() {
             ⧉ activity
           </span>
         )}
-        <span className="si">Repo Lens</span>
+        <span className="si" title="build — should match the latest commit">Repo Lens · {process.env.NEXT_PUBLIC_BUILD || "dev"}</span>
       </div>
 
       <ActivityLog

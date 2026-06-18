@@ -26,7 +26,9 @@ Backend v2 runs on **:8099** (bundle built with `API_BASE=:8099`). Unit tests us
 their own port, so they run independently. After a change:
 ```bash
 # rebuild frontend (only if app/, components/, lib/ changed)
-BASE_PATH= NEXT_PUBLIC_API_BASE=http://localhost:8099 NEXT_PUBLIC_OAUTH_BASE=http://localhost:8099 npm run build
+# NEXT_PUBLIC_BUILD stamps the git sha into the status bar ("Repo Lens · <sha>") so
+# you can confirm in-browser that you're on the new build (vs a stale cached bundle).
+BASE_PATH= NEXT_PUBLIC_API_BASE=http://localhost:8099 NEXT_PUBLIC_OAUTH_BASE=http://localhost:8099 NEXT_PUBLIC_BUILD=$(git rev-parse --short HEAD) npm run build
 pkill -f "node server/server.mjs"; scripts/repolens.sh serve   # reads .env (PORT=8099, ASK_TOKEN…)
 node tests/<id>.mjs                                            # the unit's test → PASS/FAIL + metric
 ```
