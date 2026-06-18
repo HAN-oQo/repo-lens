@@ -261,14 +261,16 @@ tab** rendering that query's focus subgraph in the chosen visualization.
     **Goal 6 complete.** (absorbs U5 + D5.)
 
 ## Goal 7 — Cleanup & DRY (bounded; no behavior change)
-- [ ] **C1 — Dedupe the README-read block + scan for dead code.** `/api/usage`,
-  `/api/usageflow`, `/api/suggest` each repeat `listTree → findReadme → readRepoFile`;
-  extract one `readRepoReadme(dir)` helper (in repo.mjs) and use it in all three. Also
-  scan for clearly-unused exports/keys and drop them. No behavior change.
+- [x] **C1 — Dedupe the README-read block + scan for dead code.** `/api/usage`,
+  `/api/usageflow`, `/api/suggest` each repeated `listTree → findReadme → readRepoFile`;
+  extracted `readRepoReadme(dir)` (repo.mjs) and used it in all three. No behavior change.
   - *Test:* `tests/c1-cleanup.mjs` — runs the existing endpoint tests' data path (usage/
     suggest still return the same shape) + asserts the 3 endpoints call the shared helper
     (source: no repeated `findReadme(` blocks in api.mjs). Build green. Metric: LOC removed.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — findReadme call-sites 4→1 (only /api/repo), 3 endpoints use
+    `readRepoReadme`, ~6 LOC removed; usage/suggest/usageflow shapes intact. Dead-export scan:
+    only `handleApi` (used by server.mjs) + `retrieveContext` (used by s3 test) flagged — both
+    live, nothing removed. Test 7/7. **Goal 7 complete — roadmap done.**
   - *Note:* the A2 leftover Korean strings in `t("en","ko")` call sites are harmless dead
     args (ignored at runtime); not worth touching ~30 sites for no functional gain — skip.
 
@@ -279,6 +281,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 C1 — deduped the README-read block behind readRepoReadme(dir) (repo.mjs), used in /api/usage, /api/usageflow, /api/suggest; findReadme call-sites 4→1, no behavior change. test: tests/c1-cleanup.mjs PASS 7/7 — endpoint shapes intact. (Goal 7 complete — all roadmap goals done.)
 - 2026-06-18 P2 — open tabs + active tab persist per repo (localStorage repolens-tabs) and restore after load; pure serializeTabs/parseTabs (drops query tabs), lazy content-fetch for restored file tabs. test: tests/p2-tabs.mjs PASS 11/11 — 4/5 restorable kept, build green. (Goal 5 complete.)
 - 2026-06-18 V6 — query-driven tabs: parseVizRequest (lib/vizQuery.ts) maps Ask phrasing→viz; handleAskDone opens a new view:"query" tab with that focus subgraph + viz (default DAG); /api/suggest chips in AskPanel drive the flow (absorbs U5+D5). test: tests/v6-query-tabs.mjs PASS 15/15 — 8/8 phrasings, build green. (Goal 6 complete.)
 - 2026-06-18 V5 — graph area seeds two tabs on load: Overview (full /api/graph) + Quickstart (usage-flow /api/usageflow); Tab.view discriminator, buildGraphIfNeeded + lazy build-on-activate, view-branched GraphView. test: tests/v5-default-tabs.mjs PASS 9/9 — Overview 68 / Quickstart 18 nodes, build green. (sets the tab model P2 persists.)

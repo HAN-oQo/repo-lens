@@ -1,7 +1,7 @@
 // /api/* router for the analysis backend. Mounted by server.mjs.
 import { json, validName } from "./lib/util.mjs";
 import {
-  ensureClone, repoDir, listTree, findReadme, readRepoFile, readRepoBytes,
+  ensureClone, repoDir, listTree, findReadme, readRepoFile, readRepoBytes, readRepoReadme,
 } from "./lib/repo.mjs";
 import { search } from "./lib/search.mjs";
 import { graphState, getGraph, requestGraph, buildFocusGraph, buildUsageFlowGraph, fileInfo } from "./lib/graph.mjs";
@@ -183,19 +183,15 @@ export async function handleApi(req, res, url) {
     if (p === "/api/usage" && req.method === "GET") {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
-      const paths = (await listTree(r.dir).catch(() => [])).map((t) => t.path);
-      const rp = findReadme(paths);
-      const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
-      return json(res, 200, { repo: `${r.owner}/${r.repo}`, readmePath: rp, ...extractUsage(readme) });
+      const { readmePath, readme } = await readRepoReadme(r.dir);
+      return json(res, 200, { repo: `${r.owner}/${r.repo}`, readmePath, ...extractUsage(readme) });
     }
 
     // GET /api/suggest?repo=o/r  → 3–5 example entry-point prompts (README + hubs)
     if (p === "/api/suggest" && req.method === "GET") {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
-      const paths = (await listTree(r.dir).catch(() => [])).map((t) => t.path);
-      const rp = findReadme(paths);
-      const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
+      const { readme } = await readRepoReadme(r.dir);
       const { symbols } = extractUsage(readme);
       const g = await getGraph(r.owner, r.repo).catch(() => ({}));
       const hubs = g.status === "ready" ? g.hubs || [] : [];
@@ -206,9 +202,7 @@ export async function handleApi(req, res, url) {
     if (p === "/api/usageflow" && req.method === "GET") {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
-      const paths = (await listTree(r.dir).catch(() => [])).map((t) => t.path);
-      const rp = findReadme(paths);
-      const readme = rp ? (await readRepoFile(r.dir, rp).catch(() => null))?.text || "" : "";
+      const { readme } = await readRepoReadme(r.dir);
       const { symbols } = extractUsage(readme);
       const fg = buildUsageFlowGraph(r.owner, r.repo, symbols);
       if (!fg) return json(res, 200, { status: graphState(r.owner, r.repo).status === "ready" ? "none" : "building", symbols });

@@ -98,6 +98,15 @@ export async function readRepoFile(dir, rel) {
   return { tooLarge: false, size: st.size, text: buf.toString("utf8") };
 }
 
+/** Locate + read the repo's README in one step → { readmePath, readme }. `readme`
+ *  is "" when none is found. Shared by /api/usage, /api/usageflow, /api/suggest. */
+export async function readRepoReadme(dir) {
+  const paths = (await listTree(dir).catch(() => [])).map((t) => t.path);
+  const readmePath = findReadme(paths);
+  const readme = readmePath ? (await readRepoFile(dir, readmePath).catch(() => null))?.text || "" : "";
+  return { readmePath, readme };
+}
+
 /** Read raw bytes (for images), with a hard cap. */
 export async function readRepoBytes(dir, rel, cap = 8 * 1024 * 1024) {
   const full = containedPath(dir, rel);
