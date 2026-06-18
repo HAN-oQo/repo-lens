@@ -594,6 +594,20 @@ export default function AskPanel(ctx: AskContext) {
       {/* settings */}
       {setOpen && (
         <div className="ask-set">
+          {hasBackend ? (
+            <>
+              <p className="ask-note">
+                {t(
+                  "Connected to the analysis backend — pick a model next to the Ask button. No API key needed.",
+                  "분석 백엔드에 연결됨 — Ask 버튼 옆에서 모델을 고르세요. API 키는 필요 없습니다."
+                )}
+              </p>
+              <div className="ask-row">
+                <button className="ask-go" onClick={() => setSetOpen(false)}>{t("Close", "닫기")}</button>
+              </div>
+            </>
+          ) : (
+          <>
           <label>{t("Provider", "프로바이더")}</label>
           <select
             value={provider}
@@ -663,6 +677,8 @@ export default function AskPanel(ctx: AskContext) {
               "주의: 질문 시 파일 트리·README·열린 파일 내용이 선택한 프로바이더/봇으로 전송됩니다. 기밀 코드는 신뢰하는 프로바이더를 쓰세요(기본 봇은 사내 게이트웨이)."
             )}
           </p>
+          </>
+          )}
         </div>
       )}
 

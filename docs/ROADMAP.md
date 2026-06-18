@@ -55,18 +55,21 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/s3-retrieval.mjs` — call the retrieval/buildContext path on a repo;
     assert context ≤ 30k chars and retrieval phase < 1500ms (LLM excluded). Metric: retrieval ms, context size.
   - *Result:* PASS 2026-06-18 — retrieval=60ms, 4 files, 21,360 chars (≤30k budget); LLM split now logged.
-- [ ] **S4 — Persist adapted graph cache across restarts (optional).** Cache capped
+- [!] **S4 — Persist adapted graph cache across restarts (optional).** Cache capped
   overview + full GraphData to `<data>/cache/<owner>_<repo>.json` keyed by sha.
   - *Test:* `tests/s4-graphcache.mjs` — build → restart → assert no graphify spawn at
     all (even the disk graph.json read is skipped in favor of the adapted cache). Metric: reload ms.
-  - *Result:* (pending)
+  - *Result:* DEFERRED 2026-06-18 — superseded by S1 (disk graph.json reuse already
+    avoids graphify on repeat loads; cached_reload was 206ms). Only marginal toGraphData
+    savings remain. Reopen with `/next S4` if toGraphData becomes a bottleneck on huge repos.
 
 ## Goal 2 — Ask panel cleanup (only what works on localhost)
-- [ ] **A1 — Hide BYO-provider + API-key UI in backend mode.** When `hasBackend`, no
-  provider select / API-key / URL inputs; keep the model dropdown.
+- [x] **A1 — Hide BYO-provider + API-key UI in backend mode.** When `hasBackend`, no
+  provider select / API-key / URL inputs; keep the model dropdown. (Ask settings now
+  branch on `hasBackend` — backend mode shows a one-line "no key needed" note + Close.)
   - *Test:* `tests/a1-ask-ui.mjs` — grep the built `out/` bundle (or component source)
     to assert the API-key field / provider select is gated behind `!hasBackend`. Metric: count of removed controls.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — 3 BYO controls (provider, server URL, API key) gated behind `!hasBackend`; inline model picker stays; build green. (Visual absence confirmed manually in browser.)
 - [ ] **A2 — Remove the EN/KO language toggle.** Drop the `한/EN` button and `ko`
   plumbing; default English.
   - *Test:* `tests/a2-no-lang-toggle.mjs` — assert no language-toggle markup in the
@@ -135,6 +138,8 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 A1 — Ask settings hide provider/URL/API-key in backend mode (only inline model picker). test: tests/a1-ask-ui.mjs PASS — 3 controls gated behind !hasBackend.
+- 2026-06-18 S4 — DEFERRED ([!]) — superseded by S1; reopen with /next S4 if toGraphData becomes a bottleneck.
 - 2026-06-18 S3 — GraphRAG capped to 6 files / 30k chars + retrieval/LLM timing logged. test: tests/s3-retrieval.mjs PASS — retrieval=60ms, 4 files, 21,360 chars.
 - 2026-06-18 S2 — Explorer caps >300-child dirs (visibleChildren helper + "show all" row). test: tests/s2-bigdir.mjs PASS — 5000→300 rows (16.7x fewer), show-all reveals all.
 - 2026-06-18 S1 — disk-cached graph reuse (sha sidecar) skips `graphify update`. test: tests/s1-graph-cache.mjs PASS — first_build=612ms, cached_reload=206ms (3.0x), graphify skipped.
