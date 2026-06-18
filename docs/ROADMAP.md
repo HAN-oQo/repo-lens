@@ -42,12 +42,13 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/s1-graph-cache.mjs` — build slugify graph → restart backend →
     reload; assert ready in <2000ms + activity log shows "reusing cached build".
   - *Result:* PASS 2026-06-18 — first_build=612ms, cached_reload=206ms (3.0x), graphify skipped.
-- [ ] **S2 — Explorer big-dir cap.** Directories with > 300 children render the first
-  300 + a "… N more (show all)" row.
+- [x] **S2 — Explorer big-dir cap.** Directories with > 300 children render the first
+  300 + a "… N more (show all)" row. (`lib/tree.ts` `visibleChildren`; Explorer per-dir
+  show-all state + "more" row.)
   - *Test:* `tests/s2-bigdir.mjs` — build a synthetic FileNode tree with a 5000-child
     dir; assert the rendered row count is capped until "show all" (test the cap helper
     / component logic, not a live browser). Metric: rows rendered before vs after.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — 5000-child dir → 300 rows (16.7x fewer), show-all → 5000, small dirs uncapped; build green.
 - [ ] **S3 — Ask retrieval budget + timing.** Cap GraphRAG to top ~6 files / 30k chars;
   log retrieval-vs-LLM time split.
   - *Test:* `tests/s3-retrieval.mjs` — call the retrieval/buildContext path on a repo;
@@ -133,4 +134,5 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 S2 — Explorer caps >300-child dirs (visibleChildren helper + "show all" row). test: tests/s2-bigdir.mjs PASS — 5000→300 rows (16.7x fewer), show-all reveals all.
 - 2026-06-18 S1 — disk-cached graph reuse (sha sidecar) skips `graphify update`. test: tests/s1-graph-cache.mjs PASS — first_build=612ms, cached_reload=206ms (3.0x), graphify skipped.

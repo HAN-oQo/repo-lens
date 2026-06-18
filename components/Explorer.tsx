@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FileNode } from "@/lib/types";
 import { ext } from "@/lib/lang";
+import { visibleChildren } from "@/lib/tree";
 
 function fileIcon(name: string): string {
   const e = ext(name);
@@ -31,6 +32,8 @@ function Node({
   depth,
   expanded,
   toggle,
+  showAll,
+  onShowAll,
   selected,
   onOpen,
 }: {
@@ -38,12 +41,15 @@ function Node({
   depth: number;
   expanded: Set<string>;
   toggle: (path: string) => void;
+  showAll: Set<string>;
+  onShowAll: (path: string) => void;
   selected: string | null;
   onOpen: (path: string) => void;
 }) {
   const pad = 8 + depth * 12;
   if (node.type === "tree") {
     const open = expanded.has(node.path);
+    const { shown, more } = visibleChildren(node.children || [], showAll.has(node.path));
     return (
       <>
         <div className="row" style={{ paddingLeft: pad }} onClick={() => toggle(node.path)}>
@@ -51,18 +57,35 @@ function Node({
           <span className="ficon">{open ? "📂" : "📁"}</span>
           <span className="fname">{node.name}</span>
         </div>
-        {open &&
-          node.children?.map((c) => (
-            <Node
-              key={c.path}
-              node={c}
-              depth={depth + 1}
-              expanded={expanded}
-              toggle={toggle}
-              selected={selected}
-              onOpen={onOpen}
-            />
-          ))}
+        {open && (
+          <>
+            {shown.map((c) => (
+              <Node
+                key={c.path}
+                node={c}
+                depth={depth + 1}
+                expanded={expanded}
+                toggle={toggle}
+                showAll={showAll}
+                onShowAll={onShowAll}
+                selected={selected}
+                onOpen={onOpen}
+              />
+            ))}
+            {more > 0 && (
+              <div
+                className="row more-row"
+                style={{ paddingLeft: 8 + (depth + 1) * 12 }}
+                onClick={() => onShowAll(node.path)}
+                title={`Show all ${(node.children || []).length} items`}
+              >
+                <span className="twisty" />
+                <span className="ficon">⋯</span>
+                <span className="fname">… {more.toLocaleString()} more (show all)</span>
+              </div>
+            )}
+          </>
+        )}
       </>
     );
   }
@@ -90,6 +113,7 @@ export default function Explorer({
   onOpen: (path: string) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState<Set<string>>(new Set());
   const toggle = (path: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -97,6 +121,7 @@ export default function Explorer({
       else next.add(path);
       return next;
     });
+  const onShowAll = (path: string) => setShowAll((prev) => new Set(prev).add(path));
 
   if (!tree) {
     return <div className="tree dim" style={{ padding: 14, fontSize: 12 }}>No repository loaded.</div>;
@@ -110,6 +135,8 @@ export default function Explorer({
           depth={0}
           expanded={expanded}
           toggle={toggle}
+          showAll={showAll}
+          onShowAll={onShowAll}
           selected={selected}
           onOpen={onOpen}
         />

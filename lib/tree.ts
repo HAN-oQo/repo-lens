@@ -42,6 +42,18 @@ export function buildTree(entries: TreeEntry[]): FileNode {
   return root;
 }
 
+/** Cap how many children of a directory are rendered at once, so expanding a
+ *  huge dir (e.g. 5k files) doesn't freeze the browser. Returns the visible
+ *  slice + how many remain hidden (0 when under the cap or showAll is set). */
+export function visibleChildren<T>(
+  children: T[],
+  showAll: boolean,
+  cap = 300
+): { shown: T[]; more: number } {
+  if (showAll || children.length <= cap) return { shown: children, more: 0 };
+  return { shown: children.slice(0, cap), more: children.length - cap };
+}
+
 // Folders first, then files, both alphabetical (case-insensitive).
 function sortNode(node: FileNode) {
   if (!node.children) return;

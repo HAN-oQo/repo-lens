@@ -113,6 +113,7 @@ button { font-family: inherit; }
 .row .twisty { width: 12px; color: var(--muted); font-size: 10px; flex: none; text-align: center; }
 .row .ficon { width: 16px; flex: none; text-align: center; opacity: .9; }
 .row .fname { overflow: hidden; text-overflow: ellipsis; }
+.more-row .fname { color: var(--accent); font-style: italic; }
 .dim { color: var(--muted); }
 
 .search-box { padding: 10px 12px; }
