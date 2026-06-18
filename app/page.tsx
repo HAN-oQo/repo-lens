@@ -545,7 +545,7 @@ export default function Home() {
           ) : leftView === "structure" ? (
             <>
               <div className="sidebar-head"><span>Structure</span></div>
-              <StructureView tree={tree} selected={activeTabObj?.kind === "file" ? activeTab : null} onOpen={openFile} />
+              <StructureView tree={tree} selected={activeTabObj?.kind === "file" ? activeTab : null} onOpen={openFile} repo={repo} />
             </>
           ) : (
             <>

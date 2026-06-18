@@ -99,6 +99,30 @@ export async function apiSuggest(ref: RepoRef): Promise<{ suggestions: { label: 
   }
 }
 
+export interface FileSymbol { id: string; name: string; kind: string; line: number | null; location: string | null; }
+/** A file's functions/classes (from the symbol graph) — for the Structure drill-down. */
+export async function apiFileInfo(ref: RepoRef, path: string): Promise<{ status: string; symbols: FileSymbol[] }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/fileinfo?repo=${encodeURIComponent(rid(ref))}&path=${encodeURIComponent(path)}`, { headers: headers() });
+    if (!res.ok) return { status: "error", symbols: [] };
+    return res.json();
+  } catch {
+    return { status: "error", symbols: [] };
+  }
+}
+
+/** One-line role for a file/dir, or a single function when `symbol` is given (LLM, cached). */
+export async function apiSummary(ref: RepoRef, path: string, symbol?: string): Promise<{ summary: string; cached: boolean }> {
+  try {
+    const q = `repo=${encodeURIComponent(rid(ref))}&path=${encodeURIComponent(path)}${symbol ? `&symbol=${encodeURIComponent(symbol)}` : ""}`;
+    const res = await fetch(`${API_BASE}/api/summary?${q}`, { headers: headers() });
+    if (!res.ok) return { summary: "", cached: false };
+    return res.json();
+  } catch {
+    return { summary: "", cached: false };
+  }
+}
+
 export interface ActivityLine { id: number; t: number; scope: string; msg: string; }
 export async function apiActivity(since = 0, ref?: RepoRef): Promise<{ lines: ActivityLine[]; lastId: number }> {
   const repoQ = ref ? `&repo=${encodeURIComponent(rid(ref))}` : "";

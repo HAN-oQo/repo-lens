@@ -154,10 +154,15 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
     returns a one-line role mentioning the slug/string behavior; second call cache-fast. Metric: first vs cached ms.
   - *Result:* PASS 2026-06-18 — slugify(): first=21830ms (LLM) → cached=28ms (780x), one
     line, distinct from the file summary, symbol echoed. Test 11/11.
-- [ ] **D4 — Drill-down UI.** dir role → file roles → function roles, expandable.
+- [x] **D4 — Drill-down UI.** dir role → file roles → function roles, expandable.
+  (`apiFileInfo`/`apiSummary` in lib/api.ts; StructureView: dirs/files/functions each
+  lazily fetch a one-line `<Role>` on expand — files also fetch their symbols; LLM
+  summaries deferred until expand + deduped. Page passes `repo`.)
   - *Test:* `tests/d4-drilldown.mjs` — source/bundle check: structure view renders role
     at each level from `/api/fileinfo` + `/api/summary`.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — 3/3 levels render a role (dir→file→function); apiFileInfo +
+    apiSummary wired; built bundle references both endpoints; build/TS green. Test 12/12.
+    (Visual layout confirmed manually.) **Goal 4 complete.**
 - [!] **D5 — Command-flow visualization.** MERGED into Goal 6. "Ordered/colored call path /
   mind-map" = the DAG (U4b) + call-tree (V2) + mermaid (V3) renderers applied to a flow
   subgraph (`extractSubgraphBySymbols` already produces the path). No separate `/api/flow`.
@@ -243,6 +248,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 D4 — Structure drill-down: dir/file/function each lazily render a one-line role (apiSummary) on expand; files also list functions/classes (apiFileInfo). test: tests/d4-drilldown.mjs PASS 12/12 — 3/3 levels, bundle references both endpoints, build green. (Goal 4 directory-map complete; visual manual.)
 - 2026-06-18 D3b — /api/summary?symbol= returns a per-function one-line role, body sliced from the D2 sourceLocation, cached under path#symbol (file summary reuses cached fn summaries as hints). test: tests/d3b-fn-summary.mjs PASS 11/11 — slugify() first=21830ms→cached=28ms (780x), distinct from file summary.
 - 2026-06-18 D3 — /api/summary returns a lazy, disk-cached (keyed by sha) one-line LLM role for a file/dir (server/lib/summary.mjs; callLLM exported from graphrag; new loadDotenv test helper). test: tests/d3-summary.mjs PASS 7/7 — slugify index.js first=11362ms→cached=27ms (421x). (Goal 4 D3; per-function summaries split out as D3b.)
 - 2026-06-18 D2 — /api/fileinfo?repo=&path= returns a file's functions/classes + locations from the symbol graph (symbolsForFile in graphify.mjs + fileInfo in graph.mjs). test: tests/d2-fileinfo.mjs PASS 9/9 — slugify index.js = 5 symbols, slugify→function@L46. (Goal 4 D2; D3 adds LLM role summaries, D4 the drill-down UI.)
