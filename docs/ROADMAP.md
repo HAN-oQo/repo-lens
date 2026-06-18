@@ -108,6 +108,15 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/u4-default-flow.mjs` — first graph payload for a fresh repo is the
     usage subgraph (flagged), not the 600-node overview.
   - *Result:* PASS 2026-06-18 — wiring asserted; slugify default flow = 18 nodes vs overview 68; build green. (Visual default confirmed manually.)
+- [x] **U4b — Directed flow layout (DAG) for the focus/usage graph.** The force blob
+  doesn't read as a flow. When a focus/usage-flow graph is shown, lay it out as a
+  left→right DAG (react-force-graph `dagMode="lr"` + `onDagError` to tolerate cycles +
+  `dagLevelDistance`) so the entry point is left and callees fan out rightward with
+  directional arrows. Overview keeps the normal force layout.
+  - *Test:* `tests/u4b-dag.mjs` — source assertion: GraphView sets `dagMode="lr"` when
+    `focusGraph` is active and provides `onDagError`; overview (no focus) uses no dagMode.
+    Build green. (Visual layout confirmed manually.) Metric: dag enabled for focus only.
+  - *Result:* PASS 2026-06-18 — focus graph uses `dagMode="lr"` + `onDagError` + `dagLevelDistance=70`; overview unchanged (force); build green. (Left→right flow confirmed manually.)
 - [ ] **U5 — Example chips in the UI.** Clickable suggested entry points → focus that flow.
   - *Test:* `tests/u5-chips.mjs` — built bundle renders chips from `/api/suggest`; clicking
     calls focus (source/bundle check + endpoint smoke).
@@ -164,6 +173,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 U4b — focus/usage-flow graph laid out as a left→right DAG (dagMode=lr + onDagError) so call order reads as a flow; overview stays force. test: tests/u4b-dag.mjs PASS. (added per user feedback — force blob didn't read as a flow.)
 - 2026-06-18 U4 — graph tab defaults to the README usage-flow subgraph (openGraph→apiUsageFlow→focus); "Full overview" switches. test: tests/u4-default-flow.mjs PASS — default 18 vs overview 68.
 - 2026-06-18 U3 — /api/suggest returns 3–5 example entry-point prompts (README symbols + hubs). test: tests/u3-suggest.mjs PASS — slugify 5 suggestions, usage traces + overview.
 - 2026-06-18 U2 — usage-flow subgraph seeded by README symbols (extractSubgraphBySymbols + /api/usageflow). test: tests/u2-usageflow.mjs PASS — slugify flow 18/68 nodes, centers on slugify.

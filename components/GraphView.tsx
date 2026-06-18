@@ -168,6 +168,9 @@ export default function GraphView({
             nodeVal={(n: any) => n.val}
             nodeLabel={(n: any) => `${n.id}  ·  in ${n.inDeg} / out ${n.outDeg}`}
             cooldownTicks={120}
+            dagMode={focusGraph ? "lr" : undefined}
+            dagLevelDistance={70}
+            onDagError={() => {}}
             onEngineStop={() => fgRef.current?.zoomToFit?.(400, 60)}
             onNodeClick={(n: any) => onOpenFile(n.sourceFile || n.id)}
             onNodeHover={(n: any) => setHover(n ? n.id : null)}
