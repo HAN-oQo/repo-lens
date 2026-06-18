@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { RepoRef } from "@/lib/types";
+import { stripMdComments } from "@/lib/md";
 
 /** Resolve a relative README URL against the repo (images → raw, links → blob). */
 function makeResolver(repo: RepoRef, dir: string) {
@@ -27,6 +28,7 @@ export default function MarkdownView({
   readmeDir: string;
 }) {
   const resolve = makeResolver(repo, readmeDir);
+  const clean = stripMdComments(content);
   return (
     <div className="markdown">
       <ReactMarkdown
@@ -44,7 +46,7 @@ export default function MarkdownView({
           ),
         }}
       >
-        {content}
+        {clean}
       </ReactMarkdown>
     </div>
   );

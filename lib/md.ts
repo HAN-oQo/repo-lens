@@ -7,6 +7,17 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Strip non-rendering meta that leaks into some READMEs: HTML comments and
+ *  mkdocs/pymdownx snippet markers (e.g. `<!-- --8<-- [start:contact-us] -->`
+ *  or bare `--8<--` include lines). */
+export function stripMdComments(src: string): string {
+  return String(src || "")
+    .replace(/<!--[\s\S]*?-->/g, "")     // HTML comments (incl. snippet markers inside them)
+    .replace(/^[ \t]*--8<--.*$/gm, "")   // bare pymdownx snippet markers
+    .replace(/\n{3,}/g, "\n\n")          // collapse blank runs left behind
+    .trimStart();
+}
+
 type PathResolver = (codeText: string) => string | null;
 
 function inline(s: string, resolvePath?: PathResolver): string {
@@ -29,7 +40,7 @@ function inline(s: string, resolvePath?: PathResolver): string {
 }
 
 export function mdToHtml(src: string, resolvePath?: PathResolver): string {
-  const lines = esc(String(src || "").trim()).replace(/\r\n?/g, "\n").split("\n");
+  const lines = esc(stripMdComments(String(src || "")).trim()).replace(/\r\n?/g, "\n").split("\n");
   const out: string[] = [];
   let code: string[] | null = null;
   let list: string | null = null;
