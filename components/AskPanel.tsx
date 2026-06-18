@@ -10,7 +10,6 @@ import { hasBackend, apiAsk, apiModels, type ModelOptions } from "@/lib/api";
 const DEFAULT_BOT_URL = "https://askbot.ce.moreh.dev/ask";
 const LS_PROV = "ask-ai-provider";
 const LS_WEB = "ask-ai-web";
-const LS_LANG = "repolens-lang";
 const keyLS = (p: string) => "ask-ai-key-" + p;
 const modelLS = (p: string) => "ask-ai-model-" + p;
 const urlLS = (p: string) => "ask-ai-url-" + p;
@@ -271,7 +270,6 @@ export default function AskPanel(ctx: AskContext) {
   const [error, setError] = useState("");
   const [setOpen, setSetOpen] = useState(false);
   const [web, setWeb] = useState(false);
-  const [ko, setKo] = useState(false);
   const [input, setInput] = useState("");
   const [botModels, setBotModels] = useState<string[] | null>(null);
   const [beModels, setBeModels] = useState<ModelOptions | null>(null); // backend (CE) model picker
@@ -286,7 +284,9 @@ export default function AskPanel(ctx: AskContext) {
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
 
-  const t = useCallback((en: string, k: string) => (ko ? k : en), [ko]);
+  // English-only UI (the EN/KO toggle was removed). Second arg kept so existing
+  // t("English", "한국어") call sites compile unchanged, but it's ignored.
+  const t = useCallback((en: string, _k?: string) => en, []);
 
   // init from localStorage
   useEffect(() => {
@@ -294,7 +294,6 @@ export default function AskPanel(ctx: AskContext) {
     setProvider(p);
     setModel(lsget(modelLS(p), "") || PROVIDERS[p].defModel);
     setWeb(lsget(LS_WEB, "0") === "1");
-    setKo(lsget(LS_LANG, "en") === "ko");
   }, []);
 
   // backend (CE) mode: discover models from the server (cloud + live local list)
@@ -381,7 +380,7 @@ export default function AskPanel(ctx: AskContext) {
         `Ground every answer in the repository context below. Be concise and precise. ` +
         `When you mention a file, write its repo-relative path in backticks (e.g. \`src/app.ts\`) so it becomes a clickable link. ` +
         `If the context is insufficient, say what other file you'd need to see. ` +
-        `Answer in ${ko ? "Korean" : "English"}.`
+        `Answer in English.`
     );
     if (ctx.treeText) parts.push("=== FILE TREE ===\n" + clip(ctx.treeText, 6000));
     if (ctx.readme) parts.push("=== README ===\n" + clip(ctx.readme, 4000));
@@ -441,7 +440,7 @@ export default function AskPanel(ctx: AskContext) {
       tick.current = setInterval(() => {
         if (myReq === reqSeq.current) setElapsed(Math.round((Date.now() - askStart.current) / 1000));
       }, 1000);
-      apiAsk(ctx.repoRef, q, ctx.activeFile?.path, ko, model)
+      apiAsk(ctx.repoRef, q, ctx.activeFile?.path, false, model)
         .then((out) => {
           if (myReq !== reqSeq.current) return;
           setConvo((c) => [...c, { role: "assistant", content: out.answer || t("(no answer)", "(응답 없음)"), cites: [] }]);
@@ -557,12 +556,6 @@ export default function AskPanel(ctx: AskContext) {
     setError("");
   }
 
-  function toggleLang() {
-    const next = !ko;
-    setKo(next);
-    lsset(LS_LANG, next ? "ko" : "en");
-  }
-
   const prov = PROVIDERS[provider];
   const modelOptions =
     provider === "bot"
@@ -580,9 +573,6 @@ export default function AskPanel(ctx: AskContext) {
             <b>{mlabel(model || prov.defModel)}</b>
           </span>
         </div>
-        <button className="icon-btn" title={t("Language", "언어")} onClick={toggleLang}>
-          {ko ? "한" : "EN"}
-        </button>
         <button className="icon-btn" title={t("New chat", "새 대화")} onClick={clearChat}>
           🗑
         </button>
@@ -687,13 +677,13 @@ export default function AskPanel(ctx: AskContext) {
 
       {/* quick actions */}
       <div className="ask-quick">
-        <button className="ask-chip" disabled={!ctx.activeFile} onClick={() => ctx.activeFile && send((ko ? "이 파일이 하는 일과 핵심 함수, 레포에서의 역할을 설명해줘: " : "Explain what this file does, its key functions, and its role in the repo: ") + "`" + ctx.activeFile.path + "`")}>
+        <button className="ask-chip" disabled={!ctx.activeFile} onClick={() => ctx.activeFile && send("Explain what this file does, its key functions, and its role in the repo: " + "`" + ctx.activeFile.path + "`")}>
           {t("Explain file", "이 파일 설명")}
         </button>
-        <button className="ask-chip" disabled={!ctx.repoRef} onClick={() => send(ko ? "이 레포의 목적, 주요 구성요소, 그것들이 어떻게 연결되는지 개괄해줘." : "Give a high-level overview of this repo: its purpose, main components, and how they connect.")}>
+        <button className="ask-chip" disabled={!ctx.repoRef} onClick={() => send("Give a high-level overview of this repo: its purpose, main components, and how they connect.")}>
           {t("Summarize repo", "레포 요약")}
         </button>
-        <button className="ask-chip" disabled={!ctx.repoRef} onClick={() => send(ko ? "import 관계를 바탕으로 가장 중요한 모듈과 의존 흐름을 설명해줘." : "Based on the imports, what are the most important modules and how do they depend on each other?")}>
+        <button className="ask-chip" disabled={!ctx.repoRef} onClick={() => send("Based on the imports, what are the most important modules and how do they depend on each other?")}>
           {t("Trace flow", "연결 추적")}
         </button>
       </div>

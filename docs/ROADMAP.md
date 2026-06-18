@@ -72,11 +72,12 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/a1-ask-ui.mjs` — grep the built `out/` bundle (or component source)
     to assert the API-key field / provider select is gated behind `!hasBackend`. Metric: count of removed controls.
   - *Result:* PASS 2026-06-18 — 3 BYO controls (provider, server URL, API key) gated behind `!hasBackend`; inline model picker stays; build green. (Visual absence confirmed manually in browser.)
-- [ ] **A2 — Remove the EN/KO language toggle.** Drop the `한/EN` button and `ko`
-  plumbing; default English.
+- [x] **A2 — Remove the EN/KO language toggle.** Drop the `한/EN` button and `ko`
+  plumbing; default English. (Removed toggle button, `ko` state, `toggleLang`, `LS_LANG`;
+  `t()` ignores its 2nd arg; system prompt forces English.)
   - *Test:* `tests/a2-no-lang-toggle.mjs` — assert no language-toggle markup in the
     built bundle; `/api/ask` answers in English by default.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — toggle button + ko state gone; system prompt "Answer in English"; "언어" absent from built bundle (0 chunks). (Live answer-language check manual.)
 - [x] **A3 — Simplify Ask header/settings.** With A1+A2, reduce the ⚙ to model picker +
   "new chat" (or remove). (Backend mode: ⚙ removed since A1 emptied it; model dropdown
   no longer gated on a loaded repo, so it's always visible.)
@@ -158,6 +159,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 A2 — removed EN/KO toggle + ko plumbing; UI English-only. test: tests/a2-no-lang-toggle.mjs PASS — "언어" gone from bundle. (Goal 2 Ask cleanup complete.)
 - 2026-06-18 A3 — backend Ask: removed the now-empty ⚙ button; model dropdown always visible (dropped repo gate). test: tests/a3-ask-clean.mjs PASS. (done out of order to fix the awkward post-A1 state — A2 still pending.)
 - 2026-06-18 A1 — Ask settings hide provider/URL/API-key in backend mode (only inline model picker). test: tests/a1-ask-ui.mjs PASS — 3 controls gated behind !hasBackend.
 - 2026-06-18 S4 — DEFERRED ([!]) — superseded by S1; reopen with /next S4 if toGraphData becomes a bottleneck.
