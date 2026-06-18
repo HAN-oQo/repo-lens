@@ -30,6 +30,7 @@ import { buildGraph, mapLimit } from "@/lib/imports";
 import { ext, isSourceFile } from "@/lib/lang";
 import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, apiUsageFlow, type SearchHit } from "@/lib/api";
 import type { FileNode, GraphData, RepoMeta, RepoRef, Tab, TreeEntry } from "@/lib/types";
+import { serializeRepoState, parseRepoState, repoStateToInput, REPO_STATE_LS } from "@/lib/persist";
 
 const IMG_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
 const LANG_COLORS: Record<string, string> = {
@@ -181,6 +182,31 @@ export default function Home() {
       setLoading(false);
     }
   }, []);
+
+  // ---- session persistence (P1): restore the viewed repo on reload ----
+  // On mount, read the repo from the URL (?repo=owner/repo&ref=branch) or localStorage
+  // and auto-load it, so a refresh keeps you on the same repo.
+  useEffect(() => {
+    let saved: RepoRef | null = null;
+    try {
+      saved = parseRepoState(window.location.search) || parseRepoState(localStorage.getItem(REPO_STATE_LS));
+    } catch {}
+    if (saved) {
+      setUrlInput(`${saved.owner}/${saved.repo}`);
+      loadRepo(repoStateToInput(saved));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the loaded repo to the URL + localStorage whenever it changes.
+  useEffect(() => {
+    if (!repo) return;
+    const qs = serializeRepoState(repo);
+    try {
+      localStorage.setItem(REPO_STATE_LS, qs);
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    } catch {}
+  }, [repo]);
 
   // ---------------- file open ----------------
   const openFile = useCallback(

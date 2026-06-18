@@ -170,15 +170,16 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 ---
 
 ## Goal 5 — Session persistence (don't lose your place on reload)
-- [ ] **P1 — Restore the viewed repo on reload.** A page refresh currently drops the
-  loaded repo back to the empty state. Persist the loaded repo (owner/repo/branch) to
-  the URL (`?repo=owner/repo&ref=branch`) + localStorage; on mount, auto-load it so a
-  refresh keeps you on the same repo (until the user clears storage/cache or loads a new
-  repo). Pure helpers `serializeRepoState`/`parseRepoState` for testability.
+- [x] **P1 — Restore the viewed repo on reload.** Persist the loaded repo to the URL
+  (`?repo=owner/repo&ref=branch`) + localStorage; on mount, auto-load it. (`lib/persist.ts`
+  pure `serializeRepoState`/`parseRepoState`/`repoStateToInput`; page restore-on-mount
+  effect + persist-on-`repo`-change effect via `history.replaceState`.)
   - *Test:* `tests/p1-persist.mjs` — round-trip a RepoRef through serialize→query/string→parse
     and assert equality; source assertion that a mount effect reads the saved repo and calls
     `loadRepo`. Metric: round-trip equality.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — round-trip equality=true across 3 refs (incl. empty + slashed
+    branch); mount restore + persist wiring asserted in source; build/TS green. Test 11/11.
+    (Live reload-restore confirmed manually.)
 - [ ] **P2 — Restore open tabs + active tab on reload.** Persist the open file tabs +
   active tab per repo (localStorage, keyed by owner/repo); restore them after the repo
   loads so refresh keeps your open files, not just the repo. **(Depends on Goal 6's tab
@@ -248,6 +249,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 P1 — viewed repo persists to URL (?repo=&ref=) + localStorage and auto-restores on mount (lib/persist.ts pure helpers + two page effects). test: tests/p1-persist.mjs PASS 11/11 — round-trip equality across 3 refs, build green. (Goal 5 P1; P2 tabs after Goal 6 tab model.)
 - 2026-06-18 D4 — Structure drill-down: dir/file/function each lazily render a one-line role (apiSummary) on expand; files also list functions/classes (apiFileInfo). test: tests/d4-drilldown.mjs PASS 12/12 — 3/3 levels, bundle references both endpoints, build green. (Goal 4 directory-map complete; visual manual.)
 - 2026-06-18 D3b — /api/summary?symbol= returns a per-function one-line role, body sliced from the D2 sourceLocation, cached under path#symbol (file summary reuses cached fn summaries as hints). test: tests/d3b-fn-summary.mjs PASS 11/11 — slugify() first=21830ms→cached=28ms (780x), distinct from file summary.
 - 2026-06-18 D3 — /api/summary returns a lazy, disk-cached (keyed by sha) one-line LLM role for a file/dir (server/lib/summary.mjs; callLLM exported from graphrag; new loadDotenv test helper). test: tests/d3-summary.mjs PASS 7/7 — slugify index.js first=11362ms→cached=27ms (421x). (Goal 4 D3; per-function summaries split out as D3b.)
