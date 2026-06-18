@@ -27,7 +27,7 @@ import {
 import { buildTree } from "@/lib/tree";
 import { buildGraph, mapLimit } from "@/lib/imports";
 import { ext, isSourceFile } from "@/lib/lang";
-import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, type SearchHit } from "@/lib/api";
+import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, apiUsageFlow, type SearchHit } from "@/lib/api";
 import type { FileNode, GraphData, RepoMeta, RepoRef, Tab, TreeEntry } from "@/lib/types";
 
 const IMG_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
@@ -60,6 +60,7 @@ export default function Home() {
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [graphBuilding, setGraphBuilding] = useState(false);
   const [focusGraph, setFocusGraph] = useState<GraphData | null>(null);
+  const [focusLabel, setFocusLabel] = useState("");
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -141,6 +142,7 @@ export default function Home() {
     setActiveTab("");
     setGraph(null);
     setFocusGraph(null);
+    setFocusLabel("");
     setReadme(null);
     try {
       let ref: RepoRef;
@@ -230,7 +232,18 @@ export default function Home() {
         // eslint-disable-next-line no-constant-condition
         while (true) {
           const g = await apiGraph(repo);
-          if (g.status === "ready") { setGraph(g); break; }
+          if (g.status === "ready") {
+            setGraph(g);
+            // U4: default the view to the README usage flow; overview stays one click away.
+            try {
+              const flow = await apiUsageFlow(repo);
+              if (flow.status === "ready" && flow.nodes?.length) {
+                setFocusGraph(flow);
+                setFocusLabel("Usage flow — what the README's quickstart runs");
+              }
+            } catch {}
+            break;
+          }
           if (g.status === "error" || g.status === "unavailable") {
             flash(g.error || "Graph unavailable on the server.");
             break;
@@ -358,13 +371,14 @@ export default function Home() {
   const handleAskDone = useCallback((fg: GraphData) => {
     if (!fg || !fg.nodes || !fg.nodes.length) return;
     setFocusGraph(fg);
+    setFocusLabel(""); // empty → GraphView shows the "from your question" notice
     setTabs((prev) => {
       if (prev.some((t) => t.kind === "graph")) return prev;
       return [...prev, { kind: "graph", id: "__GRAPH__", title: "Knowledge Graph" }];
     });
     setActiveTab("__GRAPH__");
   }, []);
-  const clearFocus = () => setFocusGraph(null);
+  const clearFocus = () => { setFocusGraph(null); setFocusLabel(""); };
 
   // ---------------- resizers ----------------
   function startResize(which: "sidebar" | "ask", e: React.PointerEvent) {
@@ -599,7 +613,7 @@ export default function Home() {
               ) : (
                 <div className="placeholder">No README found in this repository.</div>
               ))}
-            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={focusGraph} onClearFocus={clearFocus} />}
+            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={focusGraph} focusLabel={focusLabel} onClearFocus={clearFocus} />}
             {repo && activeTabObj?.kind === "file" &&
               (IMG_EXTS.has(ext(activeTab)) ? (
                 <div className="placeholder">

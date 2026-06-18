@@ -78,6 +78,27 @@ export async function apiGraph(ref: RepoRef): Promise<any> {
   return res.json();
 }
 
+/** The README usage-flow subgraph (what runs when you follow the quickstart). */
+export async function apiUsageFlow(ref: RepoRef): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/api/usageflow?repo=${encodeURIComponent(rid(ref))}`, { headers: headers() });
+    return res.json();
+  } catch {
+    return { status: "none" };
+  }
+}
+
+/** Example entry-point prompts for the loaded repo (chips). */
+export async function apiSuggest(ref: RepoRef): Promise<{ suggestions: { label: string; question: string; symbol?: string }[] }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/suggest?repo=${encodeURIComponent(rid(ref))}`, { headers: headers() });
+    if (!res.ok) return { suggestions: [] };
+    return res.json();
+  } catch {
+    return { suggestions: [] };
+  }
+}
+
 export interface ActivityLine { id: number; t: number; scope: string; msg: string; }
 export async function apiActivity(since = 0, ref?: RepoRef): Promise<{ lines: ActivityLine[]; lastId: number }> {
   const repoQ = ref ? `&repo=${encodeURIComponent(rid(ref))}` : "";

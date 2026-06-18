@@ -26,6 +26,7 @@ export default function GraphView({
   repo,
   fileCount,
   focusGraph,
+  focusLabel,
   onClearFocus,
 }: {
   data: GraphData | null;
@@ -34,6 +35,7 @@ export default function GraphView({
   repo?: RepoRef | null;
   fileCount?: number;
   focusGraph?: GraphData | null;
+  focusLabel?: string;
   onClearFocus?: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -141,7 +143,7 @@ export default function GraphView({
         )}
         {focusGraph && !building && (
           <div className="graph-focus-notice">
-            <span>🔍 Showing <b>{focusGraph.nodes.length}</b> symbols from the question — zoomed to relevance.</span>
+            <span>🔍 {focusLabel || "From your question"} · <b>{focusGraph.nodes.length}</b> symbols — zoomed to relevance.</span>
             <button className="gf-btn" onClick={onClearFocus}>Full overview</button>
           </div>
         )}

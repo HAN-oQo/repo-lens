@@ -102,11 +102,12 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/u3-suggest.mjs` — `/api/suggest?repo=` (or `/api/repo`) returns
     ≥3 example prompts. Metric: # suggestions.
   - *Result:* PASS 2026-06-18 — slugify: 5 [Trace slugify(), Trace slugifyWithCounter(), Trace reset(), How does buildPatternSlug work?, Repo overview].
-- [ ] **U4 — Graph defaults to the usage flow.** Graph tab opens on the usage-flow
-  subgraph; "Full overview" switches.
+- [x] **U4 — Graph defaults to the usage flow.** Graph tab opens on the usage-flow
+  subgraph; "Full overview" switches. (openGraph fetches `apiUsageFlow` after build →
+  default focus + "Usage flow" label; GraphView renders focus over overview.)
   - *Test:* `tests/u4-default-flow.mjs` — first graph payload for a fresh repo is the
     usage subgraph (flagged), not the 600-node overview.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — wiring asserted; slugify default flow = 18 nodes vs overview 68; build green. (Visual default confirmed manually.)
 - [ ] **U5 — Example chips in the UI.** Clickable suggested entry points → focus that flow.
   - *Test:* `tests/u5-chips.mjs` — built bundle renders chips from `/api/suggest`; clicking
     calls focus (source/bundle check + endpoint smoke).
@@ -163,6 +164,7 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 U4 — graph tab defaults to the README usage-flow subgraph (openGraph→apiUsageFlow→focus); "Full overview" switches. test: tests/u4-default-flow.mjs PASS — default 18 vs overview 68.
 - 2026-06-18 U3 — /api/suggest returns 3–5 example entry-point prompts (README symbols + hubs). test: tests/u3-suggest.mjs PASS — slugify 5 suggestions, usage traces + overview.
 - 2026-06-18 U2 — usage-flow subgraph seeded by README symbols (extractSubgraphBySymbols + /api/usageflow). test: tests/u2-usageflow.mjs PASS — slugify flow 18/68 nodes, centers on slugify.
 - 2026-06-18 U1 — /api/usage extracts README quickstart snippets + referenced symbols (server/lib/usage.mjs). test: tests/u1-usage.mjs PASS — slugify: 4 snippets, [slugify, slugifyWithCounter, reset].
