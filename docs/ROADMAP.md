@@ -166,6 +166,47 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
     that tabs are restored for the matching repo on load. Metric: tabs restored.
   - *Result:* (pending)
 
+## Goal 6 — Visualization views + query-driven tabs
+The force blob reads differently per repo, so make the visualization **pluggable** and
+let the user pick. Left rail gains viz entries (Force overview · DAG flow · Call-tree /
+step-list · Mermaid flowchart) next to File · Search. Each viz opens with **Overview** +
+**Quickstart** tabs; asking *"show X as a DAG / call tree / flowchart"* spawns a **new
+tab** rendering that query's focus subgraph in the chosen visualization.
+- [ ] **V1 — Pluggable graph render modes.** One graph component renders a `GraphData`
+  in `mode ∈ {force, dag, tree, mermaid}` with a mode switcher in the panel header.
+  Fold the existing force-overview + dag-flow behind the switch.
+  - *Test:* `tests/v1-modes.mjs` — component accepts a `mode` prop and branches to each
+    renderer; the same data renders in every mode without error. Metric: # modes.
+  - *Result:* (pending)
+- [ ] **V2 — Call-tree / step-list view.** Pure `toCallTree(graph, root?)` → ordered,
+  numbered, nested steps from the entry node (follow directed links, break cycles);
+  component renders indented rows, click → open `sourceFile`.
+  - *Test:* `tests/v2-calltree.mjs` — `toCallTree` on the slugify usage subgraph yields
+    a tree rooted at `slugify` with ordered children, no infinite loop. Metric: depth, node count.
+  - *Result:* (pending)
+- [ ] **V3 — Mermaid flowchart view.** Add `mermaid` dep; pure `toMermaid(graph)` →
+  `flowchart LR` string (sanitized ids, directed edges); component renders it, node click
+  → open file.
+  - *Test:* `tests/v3-mermaid.mjs` — `toMermaid(subgraph)` starts with `flowchart LR`,
+    includes a `slugify --> …` edge, and `mermaid.parse()` accepts it. Metric: nodes/edges.
+- [ ] **V4 — Left activity-bar viz entries.** Add buttons for the viz modes (DAG /
+  call-tree / mermaid) beside File · Search · Graph; selecting one sets the active viz.
+  - *Test:* `tests/v4-activitybar.mjs` — page source/bundle: the new activity-bar buttons
+    exist and set the viz mode. Metric: # buttons added.
+  - *Result:* (pending)
+- [ ] **V5 — Default tabs: Overview + Quickstart.** On repo load the graph area seeds two
+  tabs — "Overview" (full graph) and "Quickstart" (usage-flow) — rendered in the current viz.
+  - *Test:* `tests/v5-default-tabs.mjs` — after load the tab set includes Overview +
+    Quickstart; backend data for both is present. Metric: tabs seeded.
+  - *Result:* (pending)
+- [ ] **V6 — Query-driven tabs.** Parse the Ask question for a requested viz + target
+  ("show the request flow as a flowchart") and, on answer, open a NEW tab holding that
+  query's focus subgraph in the requested viz (default DAG).
+  - *Test:* `tests/v6-query-tabs.mjs` — pure `parseVizRequest("… as a flowchart")` →
+    `{ viz:"mermaid" }` (and "dag"/"call tree" variants); handleAskDone opens a tab
+    (source assertion). Metric: viz parsed for each phrasing.
+  - *Result:* (pending)
+
 ## Backlog / later (not localhost-blocking)
 - CE deploy of all the above (`docs/repo-lens-ce-deploy.html`).
 - Public Pages demo flip to the CE backend.
