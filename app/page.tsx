@@ -30,6 +30,14 @@ import { buildGraph, mapLimit } from "@/lib/imports";
 import { ext, isSourceFile } from "@/lib/lang";
 import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, apiUsageFlow, type SearchHit } from "@/lib/api";
 import type { FileNode, GraphData, RepoMeta, RepoRef, Tab, TreeEntry } from "@/lib/types";
+
+// graph-area tab ids (V5): two seeded tabs — full overview + README usage flow.
+const GRAPH_OVERVIEW = "__GRAPH_OVERVIEW__";
+const GRAPH_QUICKSTART = "__GRAPH_QUICKSTART__";
+const GRAPH_TABS: Tab[] = [
+  { kind: "graph", id: GRAPH_OVERVIEW, title: "Overview", view: "overview" },
+  { kind: "graph", id: GRAPH_QUICKSTART, title: "Quickstart", view: "quickstart" },
+];
 import { serializeRepoState, parseRepoState, repoStateToInput, REPO_STATE_LS } from "@/lib/persist";
 import { type GraphMode, modeConfig } from "@/lib/graphModes";
 
@@ -176,7 +184,8 @@ export default function Home() {
       setEntries(treeEntries);
       setTree(buildTree(treeEntries));
       setReadmePath(rp || "");
-      setTabs([{ kind: "readme", id: "__README__", title: rp ? rp.split("/").pop()! : "README" }]);
+      // V5: seed the graph area with two tabs — Overview (full) + Quickstart (usage flow).
+      setTabs([{ kind: "readme", id: "__README__", title: rp ? rp.split("/").pop()! : "README" }, ...GRAPH_TABS]);
       setActiveTab("__README__");
     } catch (e: any) {
       flash(e?.message || "Failed to load repository.");
@@ -248,9 +257,9 @@ export default function Home() {
   };
 
   // ---------------- graph (lazy) ----------------
-  const openGraph = useCallback(async () => {
-    setTabs((prev) => (prev.some((t) => t.kind === "graph") ? prev : [...prev, { kind: "graph", id: "__GRAPH__", title: "Knowledge Graph" }]));
-    setActiveTab("__GRAPH__");
+  // Build/poll the symbol graph (+ usage-flow focus). No tab manipulation — that's
+  // openGraph's job; this is also called lazily when a graph tab is activated.
+  const buildGraphIfNeeded = useCallback(async () => {
     if (graph || graphBuilding || !repo) return;
     setGraphBuilding(true);
 
@@ -311,7 +320,21 @@ export default function Home() {
     }
   }, [graph, graphBuilding, repo, blobPaths, contents]);
 
-  // V4: open the graph tab in a specific visualization mode (force/dag/tree/mermaid).
+  // Open (and focus) the graph area's Overview tab, ensuring the two graph tabs exist.
+  const openGraph = useCallback(() => {
+    setTabs((prev) => (prev.some((t) => t.id === GRAPH_OVERVIEW) ? prev : [...prev, ...GRAPH_TABS]));
+    setActiveTab(GRAPH_OVERVIEW);
+    buildGraphIfNeeded();
+  }, [buildGraphIfNeeded]);
+
+  // Lazy build: when any graph tab becomes active (e.g. clicking Quickstart in the tab
+  // bar), kick off the build without yanking the user to a different tab.
+  useEffect(() => {
+    if (activeTab === GRAPH_OVERVIEW || activeTab === GRAPH_QUICKSTART) buildGraphIfNeeded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // V4: open the graph in a specific visualization mode (force/dag/tree/mermaid).
   const showViz = useCallback((m: GraphMode) => { setGraphMode(m); openGraph(); }, [openGraph]);
 
   // ---------------- search ----------------
@@ -404,11 +427,8 @@ export default function Home() {
     if (!fg || !fg.nodes || !fg.nodes.length) return;
     setFocusGraph(fg);
     setFocusLabel(""); // empty → GraphView shows the "from your question" notice
-    setTabs((prev) => {
-      if (prev.some((t) => t.kind === "graph")) return prev;
-      return [...prev, { kind: "graph", id: "__GRAPH__", title: "Knowledge Graph" }];
-    });
-    setActiveTab("__GRAPH__");
+    setTabs((prev) => (prev.some((t) => t.id === GRAPH_QUICKSTART) ? prev : [...prev, ...GRAPH_TABS]));
+    setActiveTab(GRAPH_QUICKSTART); // show the focus subgraph (V6 will give queries their own tab)
   }, []);
   const clearFocus = () => { setFocusGraph(null); setFocusLabel(""); };
 
@@ -663,7 +683,7 @@ export default function Home() {
               ) : (
                 <div className="placeholder">No README found in this repository.</div>
               ))}
-            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={focusGraph} focusLabel={focusLabel} onClearFocus={clearFocus} mode={graphMode} />}
+            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={activeTabObj.view === "overview" ? null : focusGraph} focusLabel={activeTabObj.view === "overview" ? "" : focusLabel} onClearFocus={() => setActiveTab(GRAPH_OVERVIEW)} mode={graphMode} />}
             {repo && activeTabObj?.kind === "file" &&
               (IMG_EXTS.has(ext(activeTab)) ? (
                 <div className="placeholder">

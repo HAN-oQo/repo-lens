@@ -67,12 +67,15 @@ export interface GraphData {
 }
 
 export type TabKind = "readme" | "file" | "graph";
+/** which graph a graph-tab shows: the full overview, the README usage flow, or a query subgraph */
+export type GraphTabView = "overview" | "quickstart" | "query";
 
 export interface Tab {
   kind: TabKind;
-  /** path for file tabs; "__README__" / "__GRAPH__" for specials */
+  /** path for file tabs; "__README__" / graph-tab ids for specials */
   id: string;
   title: string;
+  view?: GraphTabView; // graph tabs only
 }
 
 export type LeftView = "explorer" | "search" | "graph";

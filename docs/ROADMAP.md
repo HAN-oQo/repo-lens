@@ -232,11 +232,16 @@ tab** rendering that query's focus subgraph in the chosen visualization.
     exist and set the viz mode. Metric: # buttons added.
   - *Result:* PASS 2026-06-18 — +3 viz buttons (DAG/Call tree/Flowchart) → graphMode → GraphView;
     🕸 resets to default; bundle carries the mode labels; build green. Test 10/10. (Visual confirmed manually.)
-- [ ] **V5 — Default tabs: Overview + Quickstart.** On repo load the graph area seeds two
+- [x] **V5 — Default tabs: Overview + Quickstart.** On repo load the graph area seeds two
   tabs — "Overview" (full graph) and "Quickstart" (usage-flow) — rendered in the current viz.
+  (`Tab.view: overview|quickstart|query`; `GRAPH_TABS` seeded in loadRepo; `buildGraphIfNeeded`
+  split out of openGraph + a lazy build-on-activate effect; GraphView focus branched by the
+  active tab's view; openGraph/showViz/handleAskDone retargeted to the new tab ids.)
   - *Test:* `tests/v5-default-tabs.mjs` — after load the tab set includes Overview +
     Quickstart; backend data for both is present. Metric: tabs seeded.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — 2 graph tabs seeded on load (README stays active); Overview
+    /api/graph = 68 nodes, Quickstart /api/usageflow = 18 nodes (focused subset); view-branched
+    GraphView + lazy build asserted; build green. Test 9/9. (Tab UX confirmed manually.)
 - [ ] **V6 — Query-driven tabs (+ suggestion chips).** Parse the Ask question for a
   requested viz + target ("show the request flow as a flowchart") and, on answer, open a
   NEW tab holding that query's focus subgraph in the requested viz (default DAG). Also
@@ -265,6 +270,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 V5 — graph area seeds two tabs on load: Overview (full /api/graph) + Quickstart (usage-flow /api/usageflow); Tab.view discriminator, buildGraphIfNeeded + lazy build-on-activate, view-branched GraphView. test: tests/v5-default-tabs.mjs PASS 9/9 — Overview 68 / Quickstart 18 nodes, build green. (sets the tab model P2 persists.)
 - 2026-06-18 V4 — activity-bar viz buttons (DAG/call-tree/mermaid) set graphMode → GraphView mode prop; 🕸 resets to default. test: tests/v4-activitybar.mjs PASS 10/10 — +3 buttons, bundle labels present, build green.
 - 2026-06-18 V3 — mermaid flowchart: pure toMermaid/buildMermaid (lib/mermaid.ts, sanitized ids + labels + directed edges) + MermaidView (lazy mermaid render, node-click→open); jsdom devDep for headless parse test. test: tests/v3-mermaid.mjs PASS 11/11 — slugify 18 nodes/21 edges, mermaid.parse accepts, build green.
 - 2026-06-18 V2 — call-tree/step-list: pure toCallTree(graph, root?) → ordered numbered nested steps, cycle-safe + capped (lib/callTree.ts); CallTreeView renders the tree mode. test: tests/v2-calltree.mjs PASS 12/12 — slugify rooted correctly, cyclic graph terminates, build green.
