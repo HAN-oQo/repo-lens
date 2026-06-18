@@ -3,8 +3,25 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { RepoRef } from "@/lib/types";
 import { stripMdComments } from "@/lib/md";
+
+// Many READMEs (e.g. vLLM) start with raw HTML — a centered logo, tagline, nav
+// links. Render it (rehype-raw) but sanitize it (strip scripts/handlers). Extend
+// the default GitHub schema to allow the layout tags/attrs these READMEs use, and
+// keep className (so the language-* class survives for rehype-highlight).
+const schema: any = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames || []), "picture", "source"],
+  attributes: {
+    ...defaultSchema.attributes,
+    "*": [...((defaultSchema.attributes as any)?.["*"] || []), "align", "className"],
+    img: [...((defaultSchema.attributes as any)?.img || []), "width", "height", "align"],
+    source: ["srcSet", "srcset", "media", "type", "sizes"],
+  },
+};
 
 /** Resolve a relative README URL against the repo (images → raw, links → blob). */
 function makeResolver(repo: RepoRef, dir: string) {
@@ -33,7 +50,7 @@ export default function MarkdownView({
     <div className="markdown">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, schema], [rehypeHighlight, { ignoreMissing: true }]]}
         components={{
           img: ({ src, alt, ...rest }) => (
             // eslint-disable-next-line @next/next/no-img-element
