@@ -6,8 +6,18 @@ argument-hint: "[unit ID, e.g. A2 — optional]"
 You are continuing the Repo Lens build using the roadmap ledger. Do **one** unit, end to end, **test-driven**.
 
 ## Steps
-1. **Read `docs/ROADMAP.md`** (unit definition: Change + Test + Result) and skim `CLAUDE.md`. Look at `tests/helpers.mjs` for the test convention.
-2. **Pick the unit:** if `$ARGUMENTS` names an ID, do that; else the first `[ ]` top-to-bottom (skip `[!]`). If none remain, say so and stop.
+0. **Resume check (safe across /clear between units).** Run `git status --short`.
+   - Read `docs/ROADMAP.md` and look for a unit marked `[~]` (in progress).
+   - **If a `[~]` unit exists:** a previous run was interrupted (e.g. /clear mid-unit).
+     Resume THAT unit, not a new one. If the working tree is clean (`git status` empty),
+     its code was never committed → redo the Change from scratch. If there are uncommitted
+     changes, inspect them and continue from there. Don't pick a new `[ ]` until the `[~]`
+     one is finished (or reset it to `[ ]` if abandoning).
+   - **If the tree is dirty but no `[~]` unit:** surface the uncommitted changes to the
+     user before starting — don't bury them under a new unit.
+   - Confirm the active git account will be restored (`hanq-moreh`) per CLAUDE.md.
+1. **Read `docs/ROADMAP.md`** (unit definition: Change + Test + Result) and skim `CLAUDE.md`. Look at `tests/helpers.mjs` for the test convention. (The :8099 server may not be running after a fresh session — the test spins up its own, so that's fine; restart :8099 only if you need to verify in the browser.)
+2. **Pick the unit:** a resumed `[~]` unit (step 0) wins. Else if `$ARGUMENTS` names an ID, do that; else the first `[ ]` top-to-bottom (skip `[!]`). If none remain, say so and stop.
 3. **Announce** the unit ID + title + its **Test** spec, then flip its checkbox to `[~]`.
 4. **Implement the Change** — small, focused, matching existing style. If too big, do the first slice and add the rest as a new `[ ]` sub-unit (with its own Test).
 5. **Write the test** at `tests/<id>.mjs` per the unit's *Test* line, using `tests/helpers.mjs` (own port + temp data dir; never the :8099 dev server). It must assert the acceptance criteria AND print the **metric** the unit calls for (e.g. before/after timing). Exit 0 = pass.
