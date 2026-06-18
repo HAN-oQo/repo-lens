@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Explorer from "@/components/Explorer";
 import StructureView from "@/components/StructureView";
 import CodeView from "@/components/CodeView";
@@ -28,7 +28,7 @@ import {
 import { buildTree } from "@/lib/tree";
 import { buildGraph, mapLimit } from "@/lib/imports";
 import { ext, isSourceFile } from "@/lib/lang";
-import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, apiUsageFlow, type SearchHit } from "@/lib/api";
+import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, apiUsageFlow, apiSuggest, type SearchHit } from "@/lib/api";
 import type { FileNode, GraphData, RepoMeta, RepoRef, Tab, TreeEntry } from "@/lib/types";
 
 // graph-area tab ids (V5): two seeded tabs — full overview + README usage flow.
@@ -40,6 +40,7 @@ const GRAPH_TABS: Tab[] = [
 ];
 import { serializeRepoState, parseRepoState, repoStateToInput, REPO_STATE_LS } from "@/lib/persist";
 import { type GraphMode, modeConfig } from "@/lib/graphModes";
+import { parseVizRequest } from "@/lib/vizQuery";
 
 const IMG_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
 const LANG_COLORS: Record<string, string> = {
@@ -73,6 +74,10 @@ export default function Home() {
   const [focusGraph, setFocusGraph] = useState<GraphData | null>(null);
   const [focusLabel, setFocusLabel] = useState("");
   const [graphMode, setGraphMode] = useState<GraphMode | null>(null); // V4: chosen viz (null = default)
+  // V6: query-driven graph tabs — each holds its own focus subgraph + viz; + entry-point chips.
+  const [queryTabs, setQueryTabs] = useState<Record<string, { label: string; data: GraphData; viz: GraphMode }>>({});
+  const querySeq = useRef(0);
+  const [suggestions, setSuggestions] = useState<{ label: string; question: string; symbol?: string }[]>([]);
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -337,6 +342,14 @@ export default function Home() {
   // V4: open the graph in a specific visualization mode (force/dag/tree/mermaid).
   const showViz = useCallback((m: GraphMode) => { setGraphMode(m); openGraph(); }, [openGraph]);
 
+  // V6: fetch example entry-point chips for the loaded repo (backend mode).
+  useEffect(() => {
+    if (!hasBackend || !repo) { setSuggestions([]); return; }
+    let stop = false;
+    apiSuggest(repo).then((r) => { if (!stop) setSuggestions(r.suggestions || []); }).catch(() => {});
+    return () => { stop = true; };
+  }, [repo, graph]);
+
   // ---------------- search ----------------
   // Browser mode: filename filter. Backend mode: full-text via ripgrep/git-grep.
   const searchResults = useMemo(() => {
@@ -423,12 +436,16 @@ export default function Home() {
 
   // Ask → graph: when the server returns a focused subgraph along with the answer,
   // open the graph tab and show that subgraph so the user sees the relevant code flow.
-  const handleAskDone = useCallback((fg: GraphData) => {
+  // V6: on an answer with a focus subgraph, open a NEW query tab rendering that
+  // subgraph in the viz the question asked for ("…as a flowchart" → mermaid; default DAG).
+  const handleAskDone = useCallback((fg: GraphData, question?: string) => {
     if (!fg || !fg.nodes || !fg.nodes.length) return;
-    setFocusGraph(fg);
-    setFocusLabel(""); // empty → GraphView shows the "from your question" notice
-    setTabs((prev) => (prev.some((t) => t.id === GRAPH_QUICKSTART) ? prev : [...prev, ...GRAPH_TABS]));
-    setActiveTab(GRAPH_QUICKSTART); // show the focus subgraph (V6 will give queries their own tab)
+    const viz = parseVizRequest(question || "").viz || "dag";
+    const id = `__GRAPH_Q${++querySeq.current}__`;
+    const label = (question || "Query").trim().replace(/\s+/g, " ").slice(0, 36) || "Query";
+    setQueryTabs((prev) => ({ ...prev, [id]: { label, data: fg, viz } }));
+    setTabs((prev) => [...prev, { kind: "graph", id, title: label, view: "query" }]);
+    setActiveTab(id);
   }, []);
   const clearFocus = () => { setFocusGraph(null); setFocusLabel(""); };
 
@@ -455,6 +472,7 @@ export default function Home() {
   const totalBytes = Object.values(languages).reduce((a, b) => a + b, 0);
   const gridCols = askOpen ? `48px ${sidebarW}px 5px 1fr 5px ${askW}px` : `48px ${sidebarW}px 5px 1fr`;
   const activeTabObj = tabs.find((t) => t.id === activeTab);
+  const activeQueryTab = activeTabObj?.view === "query" ? queryTabs[activeTab] : null; // V6
   const isMd = (p: string) => /\.(md|markdown|mdx)$/i.test(p);
   const dirOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
   // markdown is showable (rendered) for the README tab or any .md file tab
@@ -683,7 +701,7 @@ export default function Home() {
               ) : (
                 <div className="placeholder">No README found in this repository.</div>
               ))}
-            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={activeTabObj.view === "overview" ? null : focusGraph} focusLabel={activeTabObj.view === "overview" ? "" : focusLabel} onClearFocus={() => setActiveTab(GRAPH_OVERVIEW)} mode={graphMode} />}
+            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={activeQueryTab ? activeQueryTab.data : (activeTabObj.view === "overview" ? null : focusGraph)} focusLabel={activeQueryTab ? activeQueryTab.label : (activeTabObj.view === "overview" ? "" : focusLabel)} onClearFocus={() => setActiveTab(GRAPH_OVERVIEW)} mode={activeQueryTab ? activeQueryTab.viz : graphMode} />}
             {repo && activeTabObj?.kind === "file" &&
               (IMG_EXTS.has(ext(activeTab)) ? (
                 <div className="placeholder">
@@ -714,6 +732,7 @@ export default function Home() {
               resolvePath={resolvePath}
               onOpenFile={openFile}
               onAskDone={handleAskDone}
+              suggestions={suggestions}
             />
           </>
         )}

@@ -249,7 +249,8 @@ export interface AskContext {
   activeFile: { path: string; content: string } | null;
   resolvePath: (codeText: string) => string | null;
   onOpenFile: (path: string) => void;
-  onAskDone?: (focusGraph: any) => void;
+  onAskDone?: (focusGraph: any, question?: string) => void;
+  suggestions?: { label: string; question: string; symbol?: string }[];
 }
 
 function clip(s: string | null | undefined, n: number): string {
@@ -446,7 +447,7 @@ export default function AskPanel(ctx: AskContext) {
           setConvo((c) => [...c, { role: "assistant", content: out.answer || t("(no answer)", "(응답 없음)"), cites: [] }]);
           // If the server extracted a focused subgraph around the answer, hand it
           // to the parent so the graph view can zoom in on the relevant symbols.
-          if (out.focusGraph && ctx.onAskDone) ctx.onAskDone(out.focusGraph);
+          if (out.focusGraph && ctx.onAskDone) ctx.onAskDone(out.focusGraph, q);
         })
         .catch((e) => {
           if (myReq !== reqSeq.current) return;
@@ -686,6 +687,12 @@ export default function AskPanel(ctx: AskContext) {
         <button className="ask-chip" disabled={!ctx.repoRef} onClick={() => send("Based on the imports, what are the most important modules and how do they depend on each other?")}>
           {t("Trace flow", "연결 추적")}
         </button>
+        {/* V6: example entry-point chips from /api/suggest — each opens a query-driven tab */}
+        {(ctx.suggestions || []).map((sug, i) => (
+          <button key={"sug" + i} className="ask-chip ask-chip-suggest" disabled={!ctx.repoRef} title={sug.question} onClick={() => send(sug.question)}>
+            {sug.label}
+          </button>
+        ))}
       </div>
 
       {/* context line */}

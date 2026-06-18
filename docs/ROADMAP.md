@@ -242,14 +242,20 @@ tab** rendering that query's focus subgraph in the chosen visualization.
   - *Result:* PASS 2026-06-18 — 2 graph tabs seeded on load (README stays active); Overview
     /api/graph = 68 nodes, Quickstart /api/usageflow = 18 nodes (focused subset); view-branched
     GraphView + lazy build asserted; build green. Test 9/9. (Tab UX confirmed manually.)
-- [ ] **V6 — Query-driven tabs (+ suggestion chips).** Parse the Ask question for a
+- [x] **V6 — Query-driven tabs (+ suggestion chips).** Parse the Ask question for a
   requested viz + target ("show the request flow as a flowchart") and, on answer, open a
   NEW tab holding that query's focus subgraph in the requested viz (default DAG). Also
   render the `/api/suggest` items as clickable chips that open these tabs (absorbs U5).
+  (`lib/vizQuery.ts` `parseVizRequest`; `queryTabs` state + `handleAskDone(fg, question)`
+  opens a `view:"query"` tab; question threaded through `onAskDone`; AskPanel renders
+  `ctx.suggestions` as chips → `send(question)`.)
   - *Test:* `tests/v6-query-tabs.mjs` — pure `parseVizRequest("… as a flowchart")` →
     `{ viz:"mermaid" }` (and "dag"/"call tree" variants); handleAskDone opens a tab;
     chips render from /api/suggest (source assertion). Metric: viz parsed for each phrasing.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — parseVizRequest correct on 8/8 phrasings (flowchart→mermaid,
+    call tree/step-by-step→tree, dag/dependency→dag, force, plain→null); query-tab open +
+    per-tab viz + suggest chips wired; build green. Test 15/15. (Live flow confirmed manually.)
+    **Goal 6 complete.** (absorbs U5 + D5.)
 
 ## Goal 7 — Cleanup & DRY (bounded; no behavior change)
 - [ ] **C1 — Dedupe the README-read block + scan for dead code.** `/api/usage`,
@@ -270,6 +276,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 V6 — query-driven tabs: parseVizRequest (lib/vizQuery.ts) maps Ask phrasing→viz; handleAskDone opens a new view:"query" tab with that focus subgraph + viz (default DAG); /api/suggest chips in AskPanel drive the flow (absorbs U5+D5). test: tests/v6-query-tabs.mjs PASS 15/15 — 8/8 phrasings, build green. (Goal 6 complete.)
 - 2026-06-18 V5 — graph area seeds two tabs on load: Overview (full /api/graph) + Quickstart (usage-flow /api/usageflow); Tab.view discriminator, buildGraphIfNeeded + lazy build-on-activate, view-branched GraphView. test: tests/v5-default-tabs.mjs PASS 9/9 — Overview 68 / Quickstart 18 nodes, build green. (sets the tab model P2 persists.)
 - 2026-06-18 V4 — activity-bar viz buttons (DAG/call-tree/mermaid) set graphMode → GraphView mode prop; 🕸 resets to default. test: tests/v4-activitybar.mjs PASS 10/10 — +3 buttons, bundle labels present, build green.
 - 2026-06-18 V3 — mermaid flowchart: pure toMermaid/buildMermaid (lib/mermaid.ts, sanitized ids + labels + directed edges) + MermaidView (lazy mermaid render, node-click→open); jsdom devDep for headless parse test. test: tests/v3-mermaid.mjs PASS 11/11 — slugify 18 nodes/21 edges, mermaid.parse accepts, build green.
