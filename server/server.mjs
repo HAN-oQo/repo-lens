@@ -88,7 +88,10 @@ async function serveStatic(req, res, pathname) {
 function sendFile(res, filePath, body, status = 200) {
   const ext = "." + (filePath.split(".").pop() || "");
   const type = MIME[ext.toLowerCase()] || "application/octet-stream";
-  const cache = /\/_next\//.test(filePath) ? "public, max-age=31536000, immutable" : "no-cache";
+  // _next assets: Turbopack chunk names aren't always content-hashed, so
+  // "immutable" can pin a stale chunk in the browser across rebuilds. Revalidate
+  // instead (cheap for an internal tool; avoids "my fix isn't showing up").
+  const cache = "no-cache";
   res.writeHead(status, { "Content-Type": type, "Cache-Control": cache });
   res.end(body);
 }
@@ -105,6 +108,21 @@ const server = createServer(async (req, res) => {
 
     // analysis backend
     if (p.startsWith("/api/")) {
+      // CORS: the API is reached cross-origin both locally (127.0.0.1 vs localhost,
+      // or :3000 dev) and by the public Pages demo → CE backend. It's safe to
+      // reflect the Origin because the API is gated by the GitHub token in the
+      // x-github-token header (a foreign site can't read repo-lens's localStorage)
+      // and by AUTH_REQUIRED when public. setHeader (not writeHead) so handleApi's
+      // own writeHead keeps these.
+      const origin = req.headers.origin;
+      if (origin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+        res.setHeader("Access-Control-Allow-Headers", "content-type, x-github-token");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Max-Age", "600");
+      }
+      if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
       await handleApi(req, res, url);
       return;
     }

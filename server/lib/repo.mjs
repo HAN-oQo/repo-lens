@@ -2,6 +2,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { DATA_DIR, ensureDir, gitEnv, run, validName, hostAllowed, containedPath } from "./util.mjs";
+import { logActivity } from "./activity.mjs";
 
 const NAME = /^[A-Za-z0-9._-]+$/;
 
@@ -41,15 +42,19 @@ export async function ensureClone({ owner, repo, ref, token }) {
   const env = gitEnv(token);
   const url = `https://github.com/${owner}/${repo}.git`;
 
+  const scope = `${owner}/${repo}`;
   const existing = await stat(join(dir, ".git")).then(() => true).catch(() => false);
   if (!existing) {
+    logActivity(`cloning github.com/${owner}/${repo}${ref ? " @" + ref : ""} (shallow)…`, scope);
     const args = ["clone", "--depth", "1", "--single-branch"];
     if (ref) args.push("--branch", ref);
     args.push(url, dir);
     const r = await run("git", args, { env, timeout: 300000 });
     if (r.code !== 0) throw new Error("clone failed: " + sanitize(r.stderr));
+    logActivity("clone complete", scope);
   } else {
     // update to latest of the requested (or current) branch
+    logActivity("repo cached — fetching latest…", scope);
     const branchNow = await currentBranch(dir, env);
     const target = ref || branchNow || "HEAD";
     await run("git", ["-C", dir, "fetch", "--depth", "1", "origin", target], { env, timeout: 180000 });

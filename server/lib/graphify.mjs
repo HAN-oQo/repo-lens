@@ -9,9 +9,13 @@ export async function graphifyAvailable() {
   return r.code === 0;
 }
 
-/** `graphify update` re-extracts code files with NO LLM — free, local, fast. */
-export async function buildGraphJson(repoDir) {
-  const r = await run("graphify", ["update", "."], { cwd: repoDir, timeout: 900000, maxBuffer: 8 * 1024 * 1024 });
+/** `graphify update` re-extracts code files with NO LLM — free, local, fast.
+ *  onProgress(line) streams graphify's own output for live UI feedback. */
+export async function buildGraphJson(repoDir, onProgress) {
+  const r = await run("graphify", ["update", "."], {
+    cwd: repoDir, timeout: 900000, maxBuffer: 8 * 1024 * 1024,
+    onLine: onProgress ? (line) => onProgress(line) : undefined,
+  });
   if (r.code !== 0) throw new Error("graphify failed: " + String(r.stderr).slice(-300));
   const raw = await readFile(join(repoDir, "graphify-out", "graph.json"), "utf8");
   return JSON.parse(raw);

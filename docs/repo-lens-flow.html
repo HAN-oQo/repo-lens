@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Repo Lens — 레포 링크 → 실행 순서 (clone부터)</title>
+<style>
+  :root{
+    --bg:#faf9f5;--card:#fff;--ink:#1f1e1b;--muted:#6b6a63;--faint:#8a8f98;--line:#e3e1d8;
+    --blue:#0c447c;--blue-bg:#e6f1fb;--blue-bd:#85b7eb;--green:#27500a;--green-bg:#eaf3de;--green-bd:#97c459;
+    --amber:#6b4a06;--amber-bg:#fbf0d9;--amber-bd:#e6b54f;
+    --code-bg:#1e2330;--code-ink:#e6e8ee;--mono:"SF Mono",Menlo,Consolas,ui-monospace,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Pretendard",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 22px 90px}
+  header.head{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:6px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .meta{font:12px var(--mono);color:var(--faint);margin-top:10px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--blue-bd);background:var(--blue-bg);color:var(--blue);margin-right:6px}
+  h2{font-size:19px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+  h2 .ph{font:12px var(--mono);color:var(--faint);font-weight:400}
+  h3{font-size:14.5px;margin:18px 0 4px}
+  p{margin:9px 0}
+  code{background:#eceef2;border-radius:5px;padding:1px 6px;font:.86em var(--mono);color:#b03a55}
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:13px 15px;overflow-x:auto;font:12.5px/1.55 var(--mono);margin:10px 0}
+  pre code{background:none;color:inherit;padding:0}
+  .cmt{color:#8a93a6}
+  .diagram{white-space:pre;font:12px/1.5 var(--mono);background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:16px;overflow-x:auto;margin:14px 0}
+  ol{padding-left:20px} ol li{margin:7px 0}
+  .file{font:11.5px var(--mono);color:var(--green);background:var(--green-bg);border:1px solid var(--green-bd);border-radius:4px;padding:0 6px;white-space:nowrap}
+  .pill{display:inline-block;font-size:11px;font-weight:700;border-radius:5px;padding:1px 8px;margin-right:6px}
+  .now{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+  .bg{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd)}
+  .od{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd)}
+  .note{border-left:4px solid var(--blue-bd);background:var(--blue-bg);color:#0c3a66;border-radius:0 8px 8px 0;padding:9px 13px;margin:12px 0;font-size:13.5px}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:var(--blue-bg);color:var(--blue)}
+  footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="head">
+  <span class="tag">Flow</span>
+  <h1>Repo Lens — 레포 링크를 넣으면 무슨 순서로 도는가</h1>
+  <p class="sub">v2(백엔드) 기준. <code>git clone</code>부터 트리·README·그래프·검색·Ask까지의 실행 경로.</p>
+  <p class="meta">phases: ① 즉시(블로킹) · ② 백그라운드 · ③ 온디맨드 · 갱신 2026-06-18</p>
+</header>
+
+<p><span class="pill now">① 즉시</span> 응답 전에 끝나는 것(수 초) ·
+   <span class="pill bg">② 백그라운드</span> 응답을 막지 않고 진행 ·
+   <span class="pill od">③ 온디맨드</span> 사용자가 클릭할 때마다</p>
+
+<div class="diagram">[브라우저] Load 클릭
+   │  POST /api/repo {url}        app/page.tsx loadRepo() → lib/api.ts apiLoadRepo()
+   ▼
+┌─ ① 즉시 (블로킹, 수 초) ────────────────────────── server/api.mjs  /api/repo
+│   parseRepo → ensureClone(git clone --depth 1) → git ls-files → README 읽기
+│   → requestGraph(...)  ← ②를 던지고 기다리지 않음
+│   → 응답 {repo, tree, readmePath, readme, graph:{status}}
+│        ↳ 프론트: buildTree() + README 탭  (여기까지가 "로딩")
+│
+├─ ② 백그라운드 ──────────────────────────────────── server/lib/graph.mjs
+│   graphify update .  →  graphify-out/graph.json  →  toGraphData()  →  캐시(ready)
+│
+└─ ③ 온디맨드 ────────────────────────────────────── 사용자 동작마다
+    파일 클릭  → /api/file   → 디스크에서 읽기
+    검색       → /api/search → ripgrep(rg) / git grep
+    그래프 탭  → /api/graph  → 캐시 폴링(2s) → force-graph 렌더
+    Ask        → /api/ask    → GraphRAG(ripgrep+그래프 이웃) → LLM(askbot/Anthropic)
+</div>
+
+<h2><span class="pill now">①</span> 즉시 — <span class="ph">POST /api/repo</span></h2>
+<p>응답이 오면 트리·README가 바로 보이고 화면이 인터랙티브해집니다. (프론트: <span class="file">app/page.tsx</span> <code>loadRepo()</code>)</p>
+<ol>
+  <li><b>URL 파싱·검증</b> — <code>parseRepo()</code> <span class="file">server/lib/repo.mjs</span>. <code>github.com owner/repo</code>만 허용(SSRF 차단).</li>
+  <li><b>Clone / 업데이트</b> — <code>ensureClone()</code>:
+    <pre><code><span class="cmt"># 최초 (얕은 클론, DATA_DIR/repos/&lt;owner&gt;/&lt;repo&gt;)</span>
+git clone --depth 1 --single-branch [--branch &lt;ref&gt;] &lt;url&gt; &lt;dir&gt;
+<span class="cmt"># 재방문(이미 있으면) → 빠른 최신화</span>
+git fetch --depth 1 origin &lt;ref&gt;  &amp;&amp;  git reset --hard FETCH_HEAD
+git rev-parse HEAD                 <span class="cmt"># sha 확정</span></code></pre>
+    토큰은 argv가 아니라 git extraheader(env)로 주입 — 로그/프로세스 목록에 안 남음.</li>
+  <li><b>파일 목록</b> — <code>listTree()</code> = <code>git ls-files -z</code> → 평면 리스트.</li>
+  <li><b>README 선택·읽기</b> — <code>findReadme()</code> → <code>readRepoFile()</code> (2MB 캡).</li>
+  <li><b>그래프 예약</b> — <code>requestGraph(owner,repo,dir)</code> 호출 후 <b>await 안 함</b> → ②가 백그라운드로 시작.</li>
+  <li><b>응답</b> <code>{repo, tree, readmePath, readme, graph}</code> → 프론트가 <code>buildTree()</code>로 트리 구성, README 탭 오픈.</li>
+</ol>
+
+<h2><span class="pill bg">②</span> 백그라운드 — 심볼 그래프 <span class="ph">graphify</span></h2>
+<p>①과 동시에, 응답을 막지 않고 진행. (<span class="file">server/lib/graph.mjs</span> → <span class="file">server/lib/graphify.mjs</span>)</p>
+<ol>
+  <li>동시 빌드 2개로 제한(큐). 상태 <code>building</code>.</li>
+  <li><pre><code>graphify update .      <span class="cmt"># tree-sitter 심볼 그래프 + Leiden 커뮤니티, LLM 미사용(무료·로컬)</span>
+<span class="cmt"># → graphify-out/graph.json (NetworkX node-link)</span></code></pre></li>
+  <li><code>toGraphData()</code> 로 변환: community→색 group, source_file→클릭 점프, relation/confidence→엣지, in/out-degree로 허브. 상태 <code>ready</code>로 캐시.</li>
+</ol>
+<div class="note">그래프가 무겁기 때문에 백그라운드입니다. Ask는 그래프가 없어도 ripgrep만으로 먼저 동작하고, 그래프가 준비되면 이웃 확장으로 더 정확해집니다.</div>
+
+<h2><span class="pill od">③</span> 온디맨드 — 클릭할 때마다</h2>
+<table>
+  <tr><th>동작</th><th>엔드포인트</th><th>하는 일</th></tr>
+  <tr><td>파일 열기</td><td><code>GET /api/file</code></td><td><code>readRepoFile()</code> — 클론에서 디스크 읽기(네트워크 X, 즉시)</td></tr>
+  <tr><td>검색</td><td><code>GET /api/search</code></td><td><code>rg --json</code> (없으면 <code>git grep</code> 폴백) → <code>{path,line,col,preview}</code> <span class="file">server/lib/search.mjs</span></td></tr>
+  <tr><td>그래프 탭</td><td><code>GET /api/graph</code></td><td>프론트가 2초 간격 폴링, <code>ready</code>면 force-graph로 렌더</td></tr>
+  <tr><td>Ask</td><td><code>POST /api/ask</code></td><td>아래 GraphRAG <span class="file">server/lib/graphrag.mjs</span></td></tr>
+</table>
+<h3>Ask = GraphRAG</h3>
+<ol>
+  <li><b>검색</b> <code>relevantFiles</code>: 질문 키워드로 ripgrep 히트 + (그래프 ready면) 그래프 <b>1-hop 이웃 확장</b> → 관련 파일 선별.</li>
+  <li><b>컨텍스트</b> <code>buildContext</code>: 그 파일 슬라이스를 토큰 예산 안에서 모음(파일당 6000자/총 40000자 캡) → 출처 목록.</li>
+  <li><b>LLM</b> <code>callLLM</code>: <code>ANTHROPIC_API_KEY</code>(클라우드 모델) 또는 askbot(<code>POST /ask</code>→<code>{id}</code>→<code>/result</code> 폴링, <code>x-access-token</code>+origin). askbot 토큰은 CE에서 <code>/srv/askbot/askbot.token</code> 자동 로드.</li>
+  <li><code>{answer, sources}</code> 반환 → 답변 + 클릭 가능한 파일 출처.</li>
+</ol>
+
+<h2>설계 포인트</h2>
+<ul>
+  <li><b>클론·그래프는 서버에서 1회 + 디스크 캐시</b> → 재방문/파일 열기/검색이 즉시. 대용량도 트리·검색·파일은 초 단위.</li>
+  <li><b>무거운 건 백그라운드</b> → UI 안 막힘. 진행 상황은 활동 로그(<code>/api/activity</code>)로 실시간: <code>cloning → scanned → graph building → graph ready → search → ask</code>.</li>
+  <li><b>모델 선택</b>은 <code>/api/models</code>가 askbot <code>/models</code>에서 라이브 디스커버리(클라우드 + 로컬 게이트웨이) → Ask 드롭다운에 채움.</li>
+  <li><b>CORS</b>: <code>/api/*</code>는 Origin을 반사 — 공개 데모(Pages→CE)·로컬(127.0.0.1/포트 차이) 모두 교차 오리진이라 필요. 게이트는 GitHub 토큰/ <code>AUTH_REQUIRED</code>가 담당.</li>
+</ul>
+
+<footer>Repo Lens · 실행 흐름 · server/{server,api}.mjs + server/lib/{repo,graph,graphify,search,graphrag}.mjs · HAN-oQo/repo-lens</footer>
+</div>
+</body>
+</html>

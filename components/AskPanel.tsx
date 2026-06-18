@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RepoRef } from "@/lib/types";
 import { mdToHtml } from "@/lib/md";
-import { hasBackend, apiAsk } from "@/lib/api";
+import { hasBackend, apiAsk, apiModels, type ModelOptions } from "@/lib/api";
 
 /* ============================ providers (ported from ask.js) ============================ */
 
@@ -273,6 +273,7 @@ export default function AskPanel(ctx: AskContext) {
   const [ko, setKo] = useState(false);
   const [input, setInput] = useState("");
   const [botModels, setBotModels] = useState<string[] | null>(null);
+  const [beModels, setBeModels] = useState<ModelOptions | null>(null); // backend (CE) model picker
 
   // settings form fields
   const [fKey, setFKey] = useState("");
@@ -294,6 +295,21 @@ export default function AskPanel(ctx: AskContext) {
     setWeb(lsget(LS_WEB, "0") === "1");
     setKo(lsget(LS_LANG, "en") === "ko");
   }, []);
+
+  // backend (CE) mode: discover models from the server (cloud + live local list)
+  useEffect(() => {
+    if (!hasBackend) return;
+    apiModels().then((m) => {
+      setBeModels(m);
+      const remembered = lsget(modelLS("backend"), "");
+      const all = [...m.cloud, ...m.local];
+      setModel(remembered && all.includes(remembered) ? remembered : m.def || all[0] || "");
+    });
+  }, []);
+  const pickModel = (val: string) => {
+    setModel(val);
+    lsset(modelLS("backend"), val);
+  };
 
   // load form when provider changes / settings open
   useEffect(() => {
@@ -418,7 +434,7 @@ export default function AskPanel(ctx: AskContext) {
       tick.current = setInterval(() => {
         if (myReq === reqSeq.current) setElapsed(Math.round((Date.now() - askStart.current) / 1000));
       }, 1000);
-      apiAsk(ctx.repoRef, q, ctx.activeFile?.path, ko)
+      apiAsk(ctx.repoRef, q, ctx.activeFile?.path, ko, model)
         .then((out) => {
           if (myReq !== reqSeq.current) return;
           setConvo((c) => [...c, { role: "assistant", content: out.answer || t("(no answer)", "(응답 없음)"), cites: [] }]);
@@ -757,6 +773,24 @@ export default function AskPanel(ctx: AskContext) {
           <button className={"ask-go" + (busy ? " stop" : "")} onClick={() => (busy ? stopGen() : send(input))}>
             {busy ? t("Stop", "중단") : t("Ask", "물어보기")}
           </button>
+          {hasBackend && ctx.repoRef && beModels && (beModels.cloud.length > 0 || beModels.local.length > 0) && (
+            <select className="ask-msel" value={model} onChange={(e) => pickModel(e.target.value)} title={t("model", "모델")}>
+              {beModels.cloud.length > 0 && (
+                <optgroup label={t("Claude — cloud", "Claude — 클라우드")}>
+                  {beModels.cloud.map((m) => (
+                    <option key={m} value={m}>{mlabel(m)}</option>
+                  ))}
+                </optgroup>
+              )}
+              {beModels.local.length > 0 && (
+                <optgroup label={t("Local — gateway (free)", "로컬 — 게이트웨이")}>
+                  {beModels.local.map((m) => (
+                    <option key={m} value={m}>{mlabel(m)}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          )}
           <div className="ask-chks">
             <label className="ask-chk">
               <input

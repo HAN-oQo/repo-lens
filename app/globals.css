@@ -57,7 +57,9 @@ button { font-family: inherit; }
 
 /* ---------------- app shell ---------------- */
 .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
-.app-body { display: grid; min-height: 0; }
+/* the body row must FILL its 1fr track (not collapse to content height), or
+   .center-body can't scroll and the graph canvas resolves to height 0. */
+.app-body { display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr); }
 
 /* ---------------- title / top bar ---------------- */
 .topbar {
@@ -111,7 +113,7 @@ button { font-family: inherit; }
 .search-result mark { background: #5a4a1a; color: #ffe39a; border-radius: 2px; }
 
 /* ---------------- center / tabs ---------------- */
-.center { display: grid; grid-template-rows: auto 1fr; min-width: 0; background: var(--editor); }
+.center { display: grid; grid-template-rows: auto 1fr; min-width: 0; min-height: 0; background: var(--editor); }
 .tabstrip { display: flex; background: var(--titlebar); border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tab { display: flex; align-items: center; gap: 7px; padding: 8px 13px; font-size: 12.5px; color: var(--muted); cursor: pointer; border-right: 1px solid var(--line); white-space: nowrap; background: transparent; }
 .tab:hover { color: var(--ink); }
@@ -125,6 +127,9 @@ button { font-family: inherit; }
 .placeholder kbd { font: 11px var(--mono); background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
 
 /* markdown (README) */
+.md-toggle { position: absolute; top: 10px; right: 16px; z-index: 6; display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--card, #1b1f2a); }
+.md-toggle button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 11.5px; padding: 4px 10px; }
+.md-toggle button.on { background: var(--accent); color: #06203f; font-weight: 600; }
 .markdown { max-width: 900px; margin: 0 auto; padding: 30px 38px 80px; line-height: 1.65; }
 .markdown h1, .markdown h2 { border-bottom: 1px solid var(--line); padding-bottom: .3em; margin-top: 1.4em; }
 .markdown h1 { font-size: 1.9em; } .markdown h2 { font-size: 1.45em; } .markdown h3 { font-size: 1.2em; }
@@ -154,7 +159,13 @@ button { font-family: inherit; }
 .hub .hub-deg { color: var(--muted); flex: none; }
 .legend-item { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.graph-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: rgba(20,23,31,.6); z-index: 5; gap: 10px; flex-direction: column; }
+.graph-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: var(--muted); background: rgba(20,23,31,.78); z-index: 5; padding: 24px; text-align: center; }
+.graph-loading .gl-title { font-size: 13.5px; }
+.graph-loading .gl-title b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.graph-loading .gl-eta { color: var(--faint); }
+.graph-loading .gl-log { font: 11px/1.6 var(--mono); color: var(--faint); max-width: 520px; width: 100%; max-height: 130px; overflow: hidden; background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; text-align: left; }
+.graph-loading .gl-log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graph-loading .gl-log .gl-cur { color: var(--code-ink); }
 
 /* ---------------- resizers ---------------- */
 .resizer { cursor: col-resize; background: transparent; width: 5px; z-index: 6; position: relative; }
@@ -171,7 +182,20 @@ button { font-family: inherit; }
 
 .spin { width: 15px; height: 15px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .spin, .spin-sm { animation: none; } }
+
+/* ---------------- activity log (live backend status) ---------------- */
+.act-toggle { cursor: pointer; opacity: .8; }
+.act-toggle:hover { opacity: 1; }
+.act-toggle.busy { color: var(--accent); }
+.spin-sm { width: 10px; height: 10px; border: 2px solid rgba(255,255,255,.25); border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; flex: none; }
+.activity { position: fixed; right: 14px; bottom: 34px; width: 460px; max-width: 86vw; max-height: 46vh; display: flex; flex-direction: column; background: var(--card, #1b1f2a); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 44px rgba(0,0,0,.5); z-index: 45; overflow: hidden; }
+.activity-hd { display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--muted); }
+.activity-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 13px; padding: 2px 4px; line-height: 1; }
+.activity-body { overflow-y: auto; padding: 8px 11px; font: 11.5px/1.55 var(--mono); }
+.activity-line { padding: 1px 0; color: var(--ink); word-break: break-word; }
+.activity-t { color: var(--faint); margin-right: 7px; }
+.activity-scope { color: var(--accent); margin-right: 7px; }
 
 /* ---------------- Ask panel (ported from blog ask.js, docked + dark) ---------------- */
 .ask { display: grid; grid-template-rows: auto auto auto 1fr auto; background: var(--panel); border-left: 1px solid var(--line); min-width: 0; height: 100%; }
@@ -215,6 +239,7 @@ button { font-family: inherit; }
 .ask-go { flex: none; padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; background: var(--accent); color: #06203f; font-weight: 600; font-size: 12.5px; }
 .ask-go[disabled] { opacity: .5; cursor: default; }
 .ask-go.stop { background: var(--red); color: #2a0e07; }
+.ask-msel { flex: none; max-width: 156px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 5px 6px; font: 11.5px var(--mono); outline: none; cursor: pointer; }
 .ask-chks { margin-left: auto; display: flex; gap: 12px; align-items: center; }
 .ask-chk { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .ask-set { padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }

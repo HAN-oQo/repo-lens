@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GraphData } from "@/lib/types";
+import type { GraphData, RepoRef } from "@/lib/types";
+import { apiActivity, hasBackend } from "@/lib/api";
 
 // cast to any: next/dynamic + the lib's prop types are awkward together, and we
 // pass canvas-callback props that don't need compile-time checking here.
@@ -22,15 +23,46 @@ export default function GraphView({
   data,
   building,
   onOpenFile,
+  repo,
+  fileCount,
 }: {
   data: GraphData | null;
   building: boolean;
   onOpenFile: (path: string) => void;
+  repo?: RepoRef | null;
+  fileCount?: number;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   const [size, setSize] = useState({ w: 600, h: 400 });
   const [hover, setHover] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [progress, setProgress] = useState<string[]>([]);
+
+  // While building: tick an elapsed timer and stream the backend activity log so
+  // the overlay shows real progress (clone/scan/graphify lines), not just a spinner.
+  useEffect(() => {
+    if (!building) { setElapsed(0); setProgress([]); return; }
+    const t0 = Date.now();
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    let since = 0, stop = false, poll: ReturnType<typeof setInterval> | null = null;
+    if (hasBackend) {
+      const tick = async () => {
+        const { lines, lastId } = await apiActivity(since, repo || undefined);
+        if (stop || !lines.length) return;
+        since = lastId;
+        setProgress((prev) => [...prev, ...lines.map((l) => l.msg)].slice(-6));
+      };
+      tick();
+      poll = setInterval(tick, 1200);
+    }
+    return () => { stop = true; clearInterval(timer); if (poll) clearInterval(poll); };
+  }, [building, repo]);
+
+  // rough ETA hint by repo size (first build; cached builds are instant)
+  const etaHint = fileCount
+    ? fileCount > 1500 ? "large repo — first build can take 1–3 min" : fileCount > 400 ? "usually ~20–60s" : "usually a few seconds"
+    : "";
 
   useEffect(() => {
     const elm = wrapRef.current;
@@ -81,7 +113,17 @@ export default function GraphView({
         {building && (
           <div className="graph-loading">
             <span className="spin" />
-            <span>Reading source files & resolving imports…</span>
+            <div className="gl-title">
+              Building the symbol graph… <b>{elapsed}s</b>
+              {etaHint && <span className="gl-eta"> · {etaHint}</span>}
+            </div>
+            {progress.length > 0 && (
+              <div className="gl-log">
+                {progress.map((m, i) => (
+                  <div key={i} className={i === progress.length - 1 ? "gl-cur" : ""}>{m}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {!building && data && data.nodes.length === 0 && (

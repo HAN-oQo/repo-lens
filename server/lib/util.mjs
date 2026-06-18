@@ -49,22 +49,37 @@ function withPath(env) {
   return e;
 }
 
-/** Run a command with a timeout and captured output. Never throws on the token. */
-export function run(cmd, args, { cwd, env, timeout = 120000, maxBuffer = 64 * 1024 * 1024 } = {}) {
+/** Run a command with a timeout and captured output. Never throws on the token.
+ *  Optional onLine(text, stream) fires per output line as it arrives (for live
+ *  progress streaming, e.g. graphify). */
+export function run(cmd, args, { cwd, env, timeout = 120000, maxBuffer = 64 * 1024 * 1024, onLine } = {}) {
   return new Promise((resolveP) => {
     const child = spawn(cmd, args, { cwd, env: withPath(env) });
     let out = Buffer.alloc(0);
     let err = "";
     let killed = false;
+    let sbuf = "";
+    const feed = (chunk, stream) => {
+      if (!onLine) return;
+      sbuf += chunk;
+      let nl;
+      while ((nl = sbuf.indexOf("\n")) >= 0) {
+        const line = sbuf.slice(0, nl).trim();
+        sbuf = sbuf.slice(nl + 1);
+        if (line) { try { onLine(line, stream); } catch {} }
+      }
+    };
     const timer = setTimeout(() => {
       killed = true;
       child.kill("SIGKILL");
     }, timeout);
     child.stdout.on("data", (d) => {
       if (out.length < maxBuffer) out = Buffer.concat([out, d]);
+      feed(d.toString(), "out");
     });
     child.stderr.on("data", (d) => {
       if (err.length < 1_000_000) err += d.toString();
+      feed(d.toString(), "err");
     });
     child.on("error", (e) => {
       clearTimeout(timer);

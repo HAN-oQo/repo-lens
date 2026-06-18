@@ -98,9 +98,11 @@ ALLOWED_REDIRECTS=https://repolens.ce.moreh.dev
 CLONE_ALLOWED_HOSTS=github.com
 GH_CLIENT_ID=«oauth client id»
 GH_CLIENT_SECRET=«oauth client secret»
-<span class="cmt"># LLM 둘 중 하나: 사내 게이트웨이 askbot 재사용 또는 Anthropic 직통</span>
+<span class="cmt"># LLM 둘 중 하나: 사내 askbot 재사용(게이트됨 — 토큰 필수) 또는 Anthropic 직통</span>
 ASK_URL=https://askbot.ce.moreh.dev/ask
-<span class="cmt"># ANTHROPIC_API_KEY=«key»</span>
+ASK_TOKEN=«/srv/askbot/askbot.token 값»   <span class="cmt"># 없으면 askbot이 {"error":"unauthorized"}</span>
+ASK_MODEL=claude-moreh-Qwen3.6-27B        <span class="cmt"># askbot 게이트웨이가 서빙하는 모델</span>
+<span class="cmt"># ANTHROPIC_API_KEY=«key»                 # 직통 쓰면 위 ASK_* 대신 이것만</span>
 EOF
 chmod 600 /srv/repolens/repolens.env
 

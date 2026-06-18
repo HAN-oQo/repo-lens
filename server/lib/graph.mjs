@@ -1,5 +1,6 @@
 // Knowledge-graph state + background build orchestration (graphify, code-only).
 import { graphifyAvailable, buildGraphJson, toGraphData } from "./graphify.mjs";
+import { logActivity } from "./activity.mjs";
 
 const state = new Map(); // "owner/repo" -> { status, data?, error?, builtAt? }
 let available = null; // cached graphifyAvailable()
@@ -29,6 +30,7 @@ export async function requestGraph(owner, repo, dir) {
   if (available === null) available = await graphifyAvailable().catch(() => false);
   if (!available) {
     state.set(key, { status: "unavailable", error: "graphify not installed on the server" });
+    logActivity("graph: graphify not installed — skipping symbol graph", key);
     return;
   }
 
@@ -36,16 +38,22 @@ export async function requestGraph(owner, repo, dir) {
   const job = async () => {
     active++;
     try {
-      const json = await buildGraphJson(dir);
-      state.set(key, { status: "ready", data: toGraphData(json), builtAt: json.built_at_commit || null });
+      logActivity("graph: building symbol graph (graphify update)…", key);
+      const json = await buildGraphJson(dir, (line) => {
+        if (line.length >= 2) logActivity("graphify: " + line.slice(0, 140), key);
+      });
+      const data = toGraphData(json);
+      state.set(key, { status: "ready", data, builtAt: json.built_at_commit || null });
+      logActivity(`graph: ready — ${data.nodes?.length ?? 0} nodes / ${data.links?.length ?? 0} edges / ${data.communities ?? 0} communities`, key);
     } catch (e) {
       state.set(key, { status: "error", error: String(e?.message || e).slice(0, 300) });
+      logActivity("graph: build failed — " + String(e?.message || e).slice(0, 120), key);
     } finally {
       active--;
       const next = waiting.shift();
       if (next) next();
     }
   };
-  if (active >= MAX_CONCURRENT) waiting.push(job);
+  if (active >= MAX_CONCURRENT) { logActivity("graph: queued (build slots busy)…", key); waiting.push(job); }
   else job();
 }

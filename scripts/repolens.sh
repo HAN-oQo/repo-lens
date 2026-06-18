@@ -43,7 +43,7 @@ case "${1:-help}" in
   run)
     docker run --rm -p "127.0.0.1:${PORT}:8080" -v repolens-data:/data \
       -e GH_CLIENT_ID -e GH_CLIENT_SECRET -e ALLOWED_REDIRECTS \
-      -e ANTHROPIC_API_KEY -e ASK_URL -e ASK_MODEL -e GITHUB_SERVICE_TOKEN -e CLONE_ALLOWED_HOSTS \
+      -e ANTHROPIC_API_KEY -e ASK_URL -e ASK_TOKEN -e ASK_MODEL -e GITHUB_SERVICE_TOKEN -e CLONE_ALLOWED_HOSTS \
       "$IMAGE" ;;
 
   audit)

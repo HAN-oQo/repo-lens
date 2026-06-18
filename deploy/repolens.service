@@ -15,8 +15,10 @@
 #     --build-arg NEXT_PUBLIC_OAUTH_BASE=https://repolens.ce.moreh.dev .
 #
 # Secrets/config go in /srv/repolens/repolens.env (chmod 600, NOT in git) — see
-# .env.example for the keys (GH_CLIENT_ID/SECRET, ANTHROPIC_API_KEY or ASK_URL,
-# AUTH_REQUIRED=1, ALLOWED_REDIRECTS, CLONE_ALLOWED_HOSTS).
+# .env.example for the keys (GH_CLIENT_ID/SECRET, ANTHROPIC_API_KEY or
+# ASK_URL+ASK_TOKEN+ASK_MODEL, AUTH_REQUIRED=1, ALLOWED_REDIRECTS, CLONE_ALLOWED_HOSTS).
+# NOTE: the CE askbot is token-gated — set ASK_TOKEN (from /srv/askbot/askbot.token)
+# or /api/ask gets {"error":"unauthorized"}.
 [Unit]
 Description=Repo Lens v2 backend (clone + graphify + GraphRAG)
 After=network-online.target docker.service

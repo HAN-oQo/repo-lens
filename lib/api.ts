@@ -78,16 +78,40 @@ export async function apiGraph(ref: RepoRef): Promise<any> {
   return res.json();
 }
 
+export interface ActivityLine { id: number; t: number; scope: string; msg: string; }
+export async function apiActivity(since = 0, ref?: RepoRef): Promise<{ lines: ActivityLine[]; lastId: number }> {
+  const repoQ = ref ? `&repo=${encodeURIComponent(rid(ref))}` : "";
+  try {
+    const res = await fetch(`${API_BASE}/api/activity?since=${since}${repoQ}`, { headers: headers() });
+    if (!res.ok) return { lines: [], lastId: since };
+    return res.json();
+  } catch {
+    return { lines: [], lastId: since };
+  }
+}
+
+export interface ModelOptions { cloud: string[]; local: string[]; def: string; anthropic: boolean; }
+export async function apiModels(): Promise<ModelOptions> {
+  try {
+    const res = await fetch(`${API_BASE}/api/models`, { headers: headers() });
+    if (!res.ok) throw new Error(String(res.status));
+    return res.json();
+  } catch {
+    return { cloud: [], local: [], def: "", anthropic: false };
+  }
+}
+
 export async function apiAsk(
   ref: RepoRef,
   question: string,
   openFile?: string,
-  ko?: boolean
+  ko?: boolean,
+  model?: string
 ): Promise<{ answer: string; sources: { path: string }[] }> {
   const res = await fetch(`${API_BASE}/api/ask`, {
     method: "POST",
     headers: headers({ "content-type": "application/json" }),
-    body: JSON.stringify({ repo: rid(ref), question, openFile, ko }),
+    body: JSON.stringify({ repo: rid(ref), question, openFile, ko, model }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error || `backend ${res.status}`);

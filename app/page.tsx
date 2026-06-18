@@ -6,6 +6,7 @@ import CodeView from "@/components/CodeView";
 import MarkdownView from "@/components/MarkdownView";
 import GraphView from "@/components/GraphView";
 import AskPanel from "@/components/AskPanel";
+import ActivityLog from "@/components/ActivityLog";
 import {
   DEFAULT_OAUTH_BASE,
   GH_TOKEN_LS,
@@ -68,6 +69,8 @@ export default function Home() {
   const [sidebarW, setSidebarW] = useState(280);
   const [askW, setAskW] = useState(440);
   const [askOpen, setAskOpen] = useState(true);
+  const [showActivity, setShowActivity] = useState(false);
+  const [mdRaw, setMdRaw] = useState(false);
 
   useEffect(() => {
     const consumed = consumeOAuthToken(); // returns token if we just came back from OAuth
@@ -344,6 +347,12 @@ export default function Home() {
   const totalBytes = Object.values(languages).reduce((a, b) => a + b, 0);
   const gridCols = askOpen ? `48px ${sidebarW}px 5px 1fr 5px ${askW}px` : `48px ${sidebarW}px 5px 1fr`;
   const activeTabObj = tabs.find((t) => t.id === activeTab);
+  const isMd = (p: string) => /\.(md|markdown|mdx)$/i.test(p);
+  const dirOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+  // markdown is showable (rendered) for the README tab or any .md file tab
+  const mdActive =
+    activeTabObj?.kind === "readme" ||
+    (activeTabObj?.kind === "file" && isMd(activeTab) && contents[activeTab] !== undefined);
 
   return (
     <div className="app">
@@ -501,6 +510,12 @@ export default function Home() {
             ))}
           </div>
           <div className="center-body">
+            {repo && mdActive && (
+              <div className="md-toggle">
+                <button className={mdRaw ? "" : "on"} onClick={() => setMdRaw(false)}>Rendered</button>
+                <button className={mdRaw ? "on" : ""} onClick={() => setMdRaw(true)}>Raw</button>
+              </div>
+            )}
             {!repo && !loading && (
               <div className="placeholder">
                 <div>
@@ -513,11 +528,15 @@ export default function Home() {
             {loading && <div className="placeholder"><span className="spin" /></div>}
             {repo && activeTabObj?.kind === "readme" &&
               (readme ? (
-                <MarkdownView content={readme} repo={repo} readmeDir={readmePath.includes("/") ? readmePath.slice(0, readmePath.lastIndexOf("/")) : ""} />
+                mdRaw ? (
+                  <CodeView path={readmePath || "README.md"} content={readme} loading={false} />
+                ) : (
+                  <MarkdownView content={readme} repo={repo} readmeDir={dirOf(readmePath)} />
+                )
               ) : (
                 <div className="placeholder">No README found in this repository.</div>
               ))}
-            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} />}
+            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} />}
             {repo && activeTabObj?.kind === "file" &&
               (IMG_EXTS.has(ext(activeTab)) ? (
                 <div className="placeholder">
@@ -527,6 +546,8 @@ export default function Home() {
                     alt={activeTab} style={{ maxWidth: "90%", maxHeight: "80%" }}
                   />
                 </div>
+              ) : isMd(activeTab) && !mdRaw && contents[activeTab] !== undefined ? (
+                <MarkdownView content={contents[activeTab]} repo={repo} readmeDir={dirOf(activeTab)} />
               ) : (
                 <CodeView path={activeTab} content={contents[activeTab]} loading={loadingFiles.has(activeTab)} />
               ))}
@@ -578,8 +599,24 @@ export default function Home() {
           <span className="si">Ready — paste a GitHub link above</span>
         )}
         <span className="push" />
+        {hasBackend && (
+          <span
+            className={"si act-toggle" + (loading || graphBuilding ? " busy" : "")}
+            title="Show what the backend is doing"
+            onClick={() => setShowActivity((s) => !s)}
+          >
+            ⧉ activity
+          </span>
+        )}
         <span className="si">Repo Lens</span>
       </div>
+
+      <ActivityLog
+        open={showActivity || loading || graphBuilding}
+        live={loading || graphBuilding || showActivity}
+        repo={repo}
+        onClose={() => setShowActivity(false)}
+      />
 
       {toast && <div className="toast">{toast}</div>}
     </div>

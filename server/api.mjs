@@ -5,8 +5,9 @@ import {
 } from "./lib/repo.mjs";
 import { search } from "./lib/search.mjs";
 import { graphState, getGraph, requestGraph } from "./lib/graph.mjs";
-import { ask as graphRagAsk } from "./lib/graphrag.mjs";
+import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
+import { logActivity, recentActivity } from "./lib/activity.mjs";
 
 const EXPENSIVE = new Set(["/api/repo", "/api/ask", "/api/graph"]);
 
@@ -56,6 +57,7 @@ export async function handleApi(req, res, url) {
       const cloned = await ensureClone({ owner: parsed.owner, repo: parsed.repo, ref: body.ref || parsed.branch, token: token(req) });
       const tree = await listTree(cloned.dir);
       const paths = tree.map((t) => t.path);
+      logActivity(`scanned ${paths.length} files — ready to browse/search`, `${parsed.owner}/${parsed.repo}`);
       const readmePath = findReadme(paths);
       let readme = null;
       if (readmePath) readme = (await readRepoFile(cloned.dir, readmePath).catch(() => null))?.text ?? null;
@@ -92,10 +94,12 @@ export async function handleApi(req, res, url) {
     if (p === "/api/search" && req.method === "GET") {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
-      const out = await search(r.dir, url.searchParams.get("q") || "", {
+      const q = url.searchParams.get("q") || "";
+      const out = await search(r.dir, q, {
         regex: url.searchParams.get("regex") === "1",
         max: Math.min(500, Number(url.searchParams.get("max")) || 200),
       });
+      if (q.trim().length >= 2) logActivity(`search "${q.slice(0, 40)}" — ${out.matches?.length ?? 0} hits via ${out.engine}`, `${r.owner}/${r.repo}`);
       return json(res, 200, out);
     }
 
@@ -113,9 +117,11 @@ export async function handleApi(req, res, url) {
       const r = resolveRepo(body.repo);
       if (!r) return json(res, 400, { error: "bad repo" });
       if (!body.question || String(body.question).trim().length < 2) return json(res, 400, { error: "empty question" });
+      logActivity(`ask: "${String(body.question).slice(0, 60)}" — retrieving + LLM…`, `${r.owner}/${r.repo}`);
       const out = await graphRagAsk(r.owner, r.repo, r.dir, String(body.question), {
         openFile: typeof body.openFile === "string" ? body.openFile : undefined,
         ko: !!body.ko,
+        model: typeof body.model === "string" && body.model ? body.model : undefined,
       });
       return json(res, 200, out);
     }
@@ -125,6 +131,19 @@ export async function handleApi(req, res, url) {
       const r = resolveRepo(url.searchParams.get("repo"));
       if (!r) return json(res, 400, { error: "bad repo" });
       return json(res, 200, { graph: graphState(r.owner, r.repo) });
+    }
+
+    // GET /api/models  → model picker options (cloud defaults + live local list)
+    if (p === "/api/models" && req.method === "GET") {
+      return json(res, 200, await listModels());
+    }
+
+    // GET /api/activity?since=<id>&repo=o/r  → live backend activity log
+    if (p === "/api/activity" && req.method === "GET") {
+      const since = Number(url.searchParams.get("since")) || 0;
+      const repoQ = url.searchParams.get("repo") || "";
+      const scope = resolveRepo(repoQ) ? repoQ : "";
+      return json(res, 200, recentActivity(since, scope));
     }
 
     return json(res, 404, { error: "no such api route" });
