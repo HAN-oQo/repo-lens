@@ -31,6 +31,7 @@ import { ext, isSourceFile } from "@/lib/lang";
 import { hasBackend, apiLoadRepo, apiFileText, apiSearch, apiRawUrl, apiGraph, apiUsageFlow, type SearchHit } from "@/lib/api";
 import type { FileNode, GraphData, RepoMeta, RepoRef, Tab, TreeEntry } from "@/lib/types";
 import { serializeRepoState, parseRepoState, repoStateToInput, REPO_STATE_LS } from "@/lib/persist";
+import { type GraphMode, modeConfig } from "@/lib/graphModes";
 
 const IMG_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
 const LANG_COLORS: Record<string, string> = {
@@ -63,6 +64,7 @@ export default function Home() {
   const [graphBuilding, setGraphBuilding] = useState(false);
   const [focusGraph, setFocusGraph] = useState<GraphData | null>(null);
   const [focusLabel, setFocusLabel] = useState("");
+  const [graphMode, setGraphMode] = useState<GraphMode | null>(null); // V4: chosen viz (null = default)
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -309,6 +311,9 @@ export default function Home() {
     }
   }, [graph, graphBuilding, repo, blobPaths, contents]);
 
+  // V4: open the graph tab in a specific visualization mode (force/dag/tree/mermaid).
+  const showViz = useCallback((m: GraphMode) => { setGraphMode(m); openGraph(); }, [openGraph]);
+
   // ---------------- search ----------------
   // Browser mode: filename filter. Backend mode: full-text via ripgrep/git-grep.
   const searchResults = useMemo(() => {
@@ -553,7 +558,19 @@ export default function Home() {
           <button className={leftView === "explorer" ? "active" : ""} title="Explorer" onClick={() => setLeftView("explorer")}>🗂️</button>
           <button className={leftView === "structure" ? "active" : ""} title="Structure" onClick={() => setLeftView("structure")} disabled={!repo}>📂</button>
           <button className={leftView === "search" ? "active" : ""} title="Search" onClick={() => setLeftView("search")}>🔍</button>
-          <button className={activeTabObj?.kind === "graph" ? "active" : ""} title="Knowledge Graph" onClick={openGraph} disabled={!repo}>🕸</button>
+          <button className={activeTabObj?.kind === "graph" && !graphMode ? "active" : ""} title="Knowledge Graph" onClick={() => { setGraphMode(null); openGraph(); }} disabled={!repo}>🕸</button>
+          {(["dag", "tree", "mermaid"] as GraphMode[]).map((m) => {
+            const c = modeConfig(m);
+            return (
+              <button
+                key={m}
+                className={activeTabObj?.kind === "graph" && graphMode === m ? "active" : ""}
+                title={c.label}
+                onClick={() => showViz(m)}
+                disabled={!repo}
+              >{c.icon}</button>
+            );
+          })}
           <div style={{ flex: 1 }} />
           <button className={askOpen ? "active" : ""} title="AI panel" onClick={() => setAskOpen((s) => !s)}>✦</button>
         </div>
@@ -646,7 +663,7 @@ export default function Home() {
               ) : (
                 <div className="placeholder">No README found in this repository.</div>
               ))}
-            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={focusGraph} focusLabel={focusLabel} onClearFocus={clearFocus} />}
+            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={focusGraph} focusLabel={focusLabel} onClearFocus={clearFocus} mode={graphMode} />}
             {repo && activeTabObj?.kind === "file" &&
               (IMG_EXTS.has(ext(activeTab)) ? (
                 <div className="placeholder">

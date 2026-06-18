@@ -224,11 +224,14 @@ tab** rendering that query's focus subgraph in the chosen visualization.
   - *Result:* PASS 2026-06-18 — slugify flowchart = 18 nodes / 21 edges, `slugify --> decamelize`
     edge present, ids sanitized; `mermaid.parse()` accepts it (diagramType flowchart-v2, via jsdom);
     build green. Test 11/11. (Live SVG render confirmed manually.)
-- [ ] **V4 — Left activity-bar viz entries.** Add buttons for the viz modes (DAG /
-  call-tree / mermaid) beside File · Search · Graph; selecting one sets the active viz.
+- [x] **V4 — Left activity-bar viz entries.** Buttons for DAG / call-tree / mermaid beside
+  File · Structure · Search · Graph; selecting one opens the graph tab in that viz. (`graphMode`
+  state + `showViz(m)`; buttons generated from `modeConfig`; 🕸 resets to default; `mode={graphMode}`
+  → GraphView.)
   - *Test:* `tests/v4-activitybar.mjs` — page source/bundle: the new activity-bar buttons
     exist and set the viz mode. Metric: # buttons added.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — +3 viz buttons (DAG/Call tree/Flowchart) → graphMode → GraphView;
+    🕸 resets to default; bundle carries the mode labels; build green. Test 10/10. (Visual confirmed manually.)
 - [ ] **V5 — Default tabs: Overview + Quickstart.** On repo load the graph area seeds two
   tabs — "Overview" (full graph) and "Quickstart" (usage-flow) — rendered in the current viz.
   - *Test:* `tests/v5-default-tabs.mjs` — after load the tab set includes Overview +
@@ -262,6 +265,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 V4 — activity-bar viz buttons (DAG/call-tree/mermaid) set graphMode → GraphView mode prop; 🕸 resets to default. test: tests/v4-activitybar.mjs PASS 10/10 — +3 buttons, bundle labels present, build green.
 - 2026-06-18 V3 — mermaid flowchart: pure toMermaid/buildMermaid (lib/mermaid.ts, sanitized ids + labels + directed edges) + MermaidView (lazy mermaid render, node-click→open); jsdom devDep for headless parse test. test: tests/v3-mermaid.mjs PASS 11/11 — slugify 18 nodes/21 edges, mermaid.parse accepts, build green.
 - 2026-06-18 V2 — call-tree/step-list: pure toCallTree(graph, root?) → ordered numbered nested steps, cycle-safe + capped (lib/callTree.ts); CallTreeView renders the tree mode. test: tests/v2-calltree.mjs PASS 12/12 — slugify rooted correctly, cyclic graph terminates, build green.
 - 2026-06-18 V1 — pluggable graph render modes: lib/graphModes.ts registry (force/dag/tree/mermaid → renderer+dag) + GraphView mode prop dispatch; force/dag fold in via resolveMode, tree/mermaid are ModeStub placeholders for V2/V3. test: tests/v1-modes.mjs PASS 15/15 — 4 modes, build green. (starts Goal 6.)
