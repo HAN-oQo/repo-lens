@@ -25,12 +25,16 @@ export default function GraphView({
   onOpenFile,
   repo,
   fileCount,
+  focusGraph,
+  onClearFocus,
 }: {
   data: GraphData | null;
   building: boolean;
   onOpenFile: (path: string) => void;
   repo?: RepoRef | null;
   fileCount?: number;
+  focusGraph?: GraphData | null;
+  onClearFocus?: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -80,26 +84,35 @@ export default function GraphView({
     return Array.from(new Set(data.nodes.map((n) => n.group))).sort();
   }, [data]);
 
-  // Clone so the force engine can mutate freely without touching parent state.
+  // When focusGraph is active, render that instead of the overview. Clone
+  // so the force engine can mutate freely without touching parent state.
+  const activeData = focusGraph || data;
   const graph = useMemo(() => {
-    if (!data) return { nodes: [], links: [] };
+    if (!activeData) return { nodes: [], links: [] };
     return {
-      nodes: data.nodes.map((n) => ({ ...n })),
-      links: data.links.map((l) => ({ ...l })),
+      nodes: activeData.nodes.map((n) => ({ ...n })),
+      links: activeData.links.map((l) => ({ ...l })),
     };
-  }, [data]);
+  }, [activeData]);
+
+  // Auto-zoom when the focus graph changes (new subgraph → zoom to fit)
+  useEffect(() => {
+    if (!fgRef.current || !focusGraph || focusGraph.nodes.length === 0) return;
+    const t = setTimeout(() => fgRef.current?.zoomToFit?.(600, 80), 500);
+    return () => clearTimeout(t);
+  }, [focusGraph]);
 
   const adjacency = useMemo(() => {
     const m = new Map<string, Set<string>>();
-    if (!data) return m;
-    for (const l of data.links) {
+    if (!activeData) return m;
+    for (const l of activeData.links) {
       if (!m.has(l.source)) m.set(l.source, new Set());
       if (!m.has(l.target)) m.set(l.target, new Set());
       m.get(l.source)!.add(l.target);
       m.get(l.target)!.add(l.source);
     }
     return m;
-  }, [data]);
+  }, [activeData]);
 
   const neighbors = hover ? adjacency.get(hover) : null;
 
@@ -126,7 +139,13 @@ export default function GraphView({
             )}
           </div>
         )}
-        {!building && data && data.nodes.length === 0 && (
+        {focusGraph && !building && (
+          <div className="graph-focus-notice">
+            <span>🔍 Showing <b>{focusGraph.nodes.length}</b> symbols from the question — zoomed to relevance.</span>
+            <button className="gf-btn" onClick={onClearFocus}>Full overview</button>
+          </div>
+        )}
+        {!building && activeData && activeData.nodes.length === 0 && (
           <div className="placeholder">
             <div>
               <div className="big">🕸</div>
@@ -136,7 +155,7 @@ export default function GraphView({
             </div>
           </div>
         )}
-        {data && data.nodes.length > 0 && (
+        {activeData && activeData.nodes.length > 0 && (
           <ForceGraph2D
             ref={fgRef as any}
             graphData={graph as any}

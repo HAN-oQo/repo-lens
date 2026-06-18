@@ -250,6 +250,7 @@ export interface AskContext {
   activeFile: { path: string; content: string } | null;
   resolvePath: (codeText: string) => string | null;
   onOpenFile: (path: string) => void;
+  onAskDone?: (focusGraph: any) => void;
 }
 
 function clip(s: string | null | undefined, n: number): string {
@@ -444,6 +445,9 @@ export default function AskPanel(ctx: AskContext) {
         .then((out) => {
           if (myReq !== reqSeq.current) return;
           setConvo((c) => [...c, { role: "assistant", content: out.answer || t("(no answer)", "(응답 없음)"), cites: [] }]);
+          // If the server extracted a focused subgraph around the answer, hand it
+          // to the parent so the graph view can zoom in on the relevant symbols.
+          if (out.focusGraph && ctx.onAskDone) ctx.onAskDone(out.focusGraph);
         })
         .catch((e) => {
           if (myReq !== reqSeq.current) return;

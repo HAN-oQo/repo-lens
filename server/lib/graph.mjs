@@ -1,5 +1,5 @@
 // Knowledge-graph state + background build orchestration (graphify, code-only).
-import { graphifyAvailable, buildGraphJson, toGraphData, capGraph } from "./graphify.mjs";
+import { graphifyAvailable, buildGraphJson, toGraphData, capGraph, extractSubgraph } from "./graphify.mjs";
 import { logActivity } from "./activity.mjs";
 
 const MAX_GRAPH_NODES = Number(process.env.GRAPH_MAX_NODES || 600);
@@ -23,6 +23,20 @@ export async function getGraph(owner, repo) {
   // for query-focused subgraphs. 84k-node repos kill the browser otherwise.
   if (s.status === "ready" && s.data) return { status: "ready", ...capGraph(s.data, MAX_GRAPH_NODES) };
   return { status: s.status, error: s.error };
+}
+
+/** Return the uncapped full graph from cache (for subgraph extraction). */
+export function getFullGraph(owner, repo) {
+  const s = state.get(`${owner}/${repo}`);
+  if (s?.status === "ready" && s.data) return s.data;
+  return null;
+}
+
+/** Extract a focused subgraph around filePaths from the full cached graph. */
+export function buildFocusGraph(owner, repo, filePaths) {
+  const full = getFullGraph(owner, repo);
+  if (!full || !filePaths.length) return null;
+  return extractSubgraph(full, filePaths, 1); // 1-hop neighbors
 }
 
 /** Kick off a background build (idempotent per repo). No-op if graphify is absent. */

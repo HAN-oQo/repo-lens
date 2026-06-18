@@ -40,6 +40,67 @@ export function capGraph(data, limit = 600) {
   };
 }
 
+/** Extract a focused subgraph from the full graph around a set of file paths.
+ *  depth=0: only symbols whose sourceFile is in filePaths. depth=N: expand N
+ *  hops through links. Returns a valid GraphData the frontend can render as-is.
+ *  The full graph stays intact for subsequent queries.
+ *
+ *  filePaths should be repo-relative (from graphrag's relevantFiles / sources).
+ *  Each graph node's sourceFile is also repo-relative — match against the raw
+ *  path or trailing segments, since graphify stores different path forms. */
+export function extractSubgraph(graph, filePaths, depth = 1) {
+  if (!graph || !graph.nodes || !filePaths.length) return null;
+  // fast lookup: node sourceFile → set of matching node ids
+  const pathSet = new Set(filePaths.map((p) => p.replace(/^\/+/, "")));
+  const fileHit = (sf) => {
+    if (!sf) return false;
+    const s = sf.replace(/^\/+/, "");
+    if (pathSet.has(s)) return true;
+    // graphify sometimes uses basename, sometimes relative; match final segments
+    return [...pathSet].some((p) => s.endsWith(p.replace(/^\.[/\\]?/, "")));
+  };
+  // seed: all nodes whose sourceFile is one of the relevant files
+  const seed = new Set(graph.nodes.filter((n) => fileHit(n.sourceFile)).map((n) => n.id));
+  if (!seed.size) return null;
+  // build adjacency
+  const adj = new Map(); // nodeId → Set<neighbor id>
+  for (const l of graph.links) {
+    if (!adj.has(l.source)) adj.set(l.source, new Set());
+    if (!adj.has(l.target)) adj.set(l.target, new Set());
+    adj.get(l.source).add(l.target);
+    adj.get(l.target).add(l.source);
+  }
+  // expand
+  let frontier = new Set(seed);
+  for (let d = 0; d < depth; d++) {
+    const next = new Set();
+    for (const id of frontier) {
+      const nb = adj.get(id);
+      if (nb) nb.forEach((n) => { if (!seed.has(n)) next.add(n); });
+    }
+    next.forEach((n) => seed.add(n));
+    frontier = next;
+    if (!frontier.size) break;
+  }
+  // filter
+  const keep = new Set(seed);
+  const nodes = graph.nodes.filter((n) => keep.has(n.id));
+  const links = graph.links.filter((l) => keep.has(l.source) && keep.has(l.target));
+  // hubs: recompute from the subgraph
+  const inDeg = new Map();
+  for (const l of links) inDeg.set(l.target, (inDeg.get(l.target) || 0) + 1);
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const hubs = [...inDeg.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
+    .map(([id, d]) => ({ id: byId.get(id)?.name || id, inDeg: d, file: byId.get(id)?.sourceFile || undefined }));
+  return {
+    nodes, links, orphans: [], hubs,
+    parsedCount: nodes.length, skippedCount: 0,
+    communities: new Set(nodes.map((n) => n.group)).size,
+    engine: graph.engine,
+    capped: false, totalNodes: nodes.length, totalLinks: links.length,
+  };
+}
+
 /** NetworkX node-link (graphify) → our GraphData. */
 export function toGraphData(json) {
   const rawNodes = json.nodes || [];

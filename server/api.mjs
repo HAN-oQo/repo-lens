@@ -4,7 +4,7 @@ import {
   ensureClone, repoDir, listTree, findReadme, readRepoFile, readRepoBytes,
 } from "./lib/repo.mjs";
 import { search } from "./lib/search.mjs";
-import { graphState, getGraph, requestGraph } from "./lib/graph.mjs";
+import { graphState, getGraph, requestGraph, buildFocusGraph } from "./lib/graph.mjs";
 import { ask as graphRagAsk, listModels } from "./lib/graphrag.mjs";
 import { AUTH_REQUIRED, validateUser, rateLimit } from "./lib/auth.mjs";
 import { logActivity, recentActivity } from "./lib/activity.mjs";
@@ -111,6 +111,18 @@ export async function handleApi(req, res, url) {
       return json(res, 200, g);
     }
 
+    // POST /api/graph/focus {repo, files:["path1",…]}  → focused subgraph
+    if (p === "/api/graph/focus" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const r = resolveRepo(body.repo || "");
+      if (!r) return json(res, 400, { error: "bad repo" });
+      const files = (Array.isArray(body.files) ? body.files : []).filter((f) => typeof f === "string").slice(0, 30);
+      if (!files.length) return json(res, 400, { error: "no focus files" });
+      const fg = buildFocusGraph(r.owner, r.repo, files);
+      if (!fg) return json(res, 200, { status: "none", error: "graph not yet ready or no matching symbols" });
+      return json(res, 200, { status: "ready", ...fg });
+    }
+
     // POST /api/ask {repo, question, openFile?}  → GraphRAG answer + cites
     if (p === "/api/ask" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)) || "{}");
@@ -123,6 +135,13 @@ export async function handleApi(req, res, url) {
         ko: !!body.ko,
         model: typeof body.model === "string" && body.model ? body.model : undefined,
       });
+      // If the graph is ready, extract a focused subgraph around the source files
+      // so the frontend can switch from the overview to a query-relevant zoom.
+      const srcFiles = (out.sources || []).map((s) => s.path).filter(Boolean);
+      if (srcFiles.length) {
+        const fg = buildFocusGraph(r.owner, r.repo, srcFiles);
+        if (fg) out.focusGraph = fg;
+      }
       return json(res, 200, out);
     }
 

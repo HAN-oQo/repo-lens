@@ -107,7 +107,7 @@ export async function apiAsk(
   openFile?: string,
   ko?: boolean,
   model?: string
-): Promise<{ answer: string; sources: { path: string }[] }> {
+): Promise<{ answer: string; sources: { path: string }[]; focusGraph?: any }> {
   const res = await fetch(`${API_BASE}/api/ask`, {
     method: "POST",
     headers: headers({ "content-type": "application/json" }),

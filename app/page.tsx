@@ -59,6 +59,7 @@ export default function Home() {
 
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [graphBuilding, setGraphBuilding] = useState(false);
+  const [focusGraph, setFocusGraph] = useState<GraphData | null>(null);
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -139,6 +140,7 @@ export default function Home() {
     setTabs([]);
     setActiveTab("");
     setGraph(null);
+    setFocusGraph(null);
     setReadme(null);
     try {
       let ref: RepoRef;
@@ -350,6 +352,19 @@ export default function Home() {
     setAuthErr("");
     flash("Signed out of GitHub.");
   };
+
+  // Ask → graph: when the server returns a focused subgraph along with the answer,
+  // open the graph tab and show that subgraph so the user sees the relevant code flow.
+  const handleAskDone = useCallback((fg: GraphData) => {
+    if (!fg || !fg.nodes || !fg.nodes.length) return;
+    setFocusGraph(fg);
+    setTabs((prev) => {
+      if (prev.some((t) => t.kind === "graph")) return prev;
+      return [...prev, { kind: "graph", id: "__GRAPH__", title: "Knowledge Graph" }];
+    });
+    setActiveTab("__GRAPH__");
+  }, []);
+  const clearFocus = () => setFocusGraph(null);
 
   // ---------------- resizers ----------------
   function startResize(which: "sidebar" | "ask", e: React.PointerEvent) {
@@ -584,7 +599,7 @@ export default function Home() {
               ) : (
                 <div className="placeholder">No README found in this repository.</div>
               ))}
-            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} />}
+            {repo && activeTabObj?.kind === "graph" && <GraphView data={graph} building={graphBuilding} onOpenFile={openFile} repo={repo} fileCount={blobPaths.length} focusGraph={focusGraph} onClearFocus={clearFocus} />}
             {repo && activeTabObj?.kind === "file" &&
               (IMG_EXTS.has(ext(activeTab)) ? (
                 <div className="placeholder">
@@ -614,6 +629,7 @@ export default function Home() {
               activeFile={activeFile}
               resolvePath={resolvePath}
               onOpenFile={openFile}
+              onAskDone={handleAskDone}
             />
           </>
         )}
