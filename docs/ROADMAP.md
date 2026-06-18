@@ -29,7 +29,7 @@ Verify with `curl` against `/api/*` and/or the headless notes. Token is in `.env
 ---
 
 ## Goal 1 — Speed (localhost feels instant)
-- [ ] **S1 — Reload graph from disk (skip rebuild).** On `getGraph`/`requestGraph`,
+- [x] **S1 — Reload graph from disk (skip rebuild).** On `getGraph`/`requestGraph`,
   if `<clone>/graphify-out/graph.json` exists and the repo's HEAD sha is unchanged,
   load `toGraphData(json)` straight from disk instead of re-running `graphify update`.
   Persist the resolved sha alongside. *Accept:* after a server restart, opening a
@@ -101,3 +101,4 @@ Verify with `curl` against `/api/*` and/or the headless notes. Token is in `.env
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (verified: how)` -->
+- 2026-06-18 S1 — graph.mjs reuses on-disk graphify-out/graph.json when the HEAD sha matches a `.repolens-sha` sidecar, skipping `graphify update`. (verified: built slugify graph → restarted server → reload returned `ready` in 177ms with activity log "reusing cached build … skipping graphify")
