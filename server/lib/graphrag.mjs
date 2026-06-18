@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { search } from "./search.mjs";
 import { readRepoFile } from "./repo.mjs";
 import { getGraph } from "./graph.mjs";
+import { logActivity } from "./activity.mjs";
 
 // askbot is token-gated. On the CE node, reuse the SAME token file the bot/blog
 // use (zero manual entry) — ASK_TOKEN env wins, else the first existing token
@@ -61,7 +62,8 @@ function terms(q) {
 }
 
 const FILE_CAP = 6000; // chars per file in context
-const TOTAL_CAP = 40000;
+const TOTAL_CAP = 30000; // total context budget (keeps Ask fast + within model limits)
+const MAX_FILES = 6; // top-N most relevant files
 
 /** Pick the most relevant files for the question. */
 async function relevantFiles(owner, repo, dir, question, openFile) {
@@ -90,7 +92,14 @@ async function relevantFiles(owner, repo, dir, question, openFile) {
   }
   if (openFile) bump(openFile, 5);
 
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p).slice(0, 7);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p).slice(0, MAX_FILES);
+}
+
+/** Retrieval only (no LLM) + how long it took — used by ask() and by tests. */
+export async function retrieveContext(owner, repo, dir, question, openFile) {
+  const t0 = Date.now();
+  const r = await buildContext(owner, repo, dir, question, openFile);
+  return { ...r, ms: Date.now() - t0 };
 }
 
 export async function buildContext(owner, repo, dir, question, openFile) {
@@ -156,12 +165,17 @@ async function callLLM(system, question, ko, model) {
 }
 
 export async function ask(owner, repo, dir, question, { openFile, ko = false, model } = {}) {
+  const tR = Date.now();
   const { context, sources } = await buildContext(owner, repo, dir, question, openFile);
+  const retrievalMs = Date.now() - tR;
   const system =
     `You are a code assistant for the GitHub repo ${owner}/${repo}. Answer the user's question ` +
     `grounded ONLY in the repository excerpts below. Cite files by their repo-relative path in backticks. ` +
     `If the excerpts are insufficient, say what other file you'd need. Be concise. Answer in ${ko ? "Korean" : "English"}.\n\n` +
     `=== REPOSITORY EXCERPTS ===\n${context || "(no relevant files found)"}`;
+  const tL = Date.now();
   const answer = await callLLM(system, question, ko, model);
-  return { answer, sources };
+  const llmMs = Date.now() - tL;
+  logActivity(`ask: retrieved ${sources.length} files / ${context.length} chars in ${retrievalMs}ms · LLM ${llmMs}ms`, `${owner}/${repo}`);
+  return { answer, sources, timing: { retrievalMs, llmMs, contextChars: context.length } };
 }

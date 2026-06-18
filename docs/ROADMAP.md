@@ -49,11 +49,12 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
     dir; assert the rendered row count is capped until "show all" (test the cap helper
     / component logic, not a live browser). Metric: rows rendered before vs after.
   - *Result:* PASS 2026-06-18 — 5000-child dir → 300 rows (16.7x fewer), show-all → 5000, small dirs uncapped; build green.
-- [ ] **S3 — Ask retrieval budget + timing.** Cap GraphRAG to top ~6 files / 30k chars;
-  log retrieval-vs-LLM time split.
+- [x] **S3 — Ask retrieval budget + timing.** Cap GraphRAG to top ~6 files / 30k chars;
+  log retrieval-vs-LLM time split. (`TOTAL_CAP=30000`, `MAX_FILES=6`; `ask` logs
+  `retrieved N files / M chars in Xms · LLM Yms` and returns `timing`.)
   - *Test:* `tests/s3-retrieval.mjs` — call the retrieval/buildContext path on a repo;
     assert context ≤ 30k chars and retrieval phase < 1500ms (LLM excluded). Metric: retrieval ms, context size.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — retrieval=60ms, 4 files, 21,360 chars (≤30k budget); LLM split now logged.
 - [ ] **S4 — Persist adapted graph cache across restarts (optional).** Cache capped
   overview + full GraphData to `<data>/cache/<owner>_<repo>.json` keyed by sha.
   - *Test:* `tests/s4-graphcache.mjs` — build → restart → assert no graphify spawn at
@@ -134,5 +135,6 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 S3 — GraphRAG capped to 6 files / 30k chars + retrieval/LLM timing logged. test: tests/s3-retrieval.mjs PASS — retrieval=60ms, 4 files, 21,360 chars.
 - 2026-06-18 S2 — Explorer caps >300-child dirs (visibleChildren helper + "show all" row). test: tests/s2-bigdir.mjs PASS — 5000→300 rows (16.7x fewer), show-all reveals all.
 - 2026-06-18 S1 — disk-cached graph reuse (sha sidecar) skips `graphify update`. test: tests/s1-graph-cache.mjs PASS — first_build=612ms, cached_reload=206ms (3.0x), graphify skipped.
