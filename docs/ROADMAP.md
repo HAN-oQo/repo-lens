@@ -122,10 +122,13 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   (chips→focus) would just be reworked by V6. V6 now renders the chips + opens the tab.
 
 ## Goal 4 — Directory map (structure + roles + flow)
-- [ ] **D1 — Structure panel + activity-bar icon.** New 📂 left view, Finder-like dir tree.
+- [x] **D1 — Structure panel + activity-bar icon.** New 📂 left view, Finder-like dir tree.
   - *Test:* `tests/d1-structure.mjs` — bundle/source check: new activity-bar button +
     structure view component present and wired.
-  - *Result:* (pending)
+  - *Result:* PASS 2026-06-18 — `components/StructureView.tsx` (dir-map: folders + per-dir
+    `dirStats` size badges, opens files); +1 activity-bar button (📂) → `leftView="structure"`;
+    4/4 page-wiring points (import, state union, button, sidebar render); build green. Test 9/9.
+    (Visual layout confirmed manually.) D2–D4 hang symbols/roles/drill-down off this view.
 - [ ] **D2 — Per-file symbol list.** `/api/fileinfo?repo=&path=` returns a file's
   functions/classes (from graph nodes) + locations.
   - *Test:* `tests/d2-fileinfo.mjs` — for slugify `index.js`, returns `slugify`,
@@ -225,6 +228,7 @@ tab** rendering that query's focus subgraph in the chosen visualization.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
+- 2026-06-18 D1 — new 📂 Structure left view: Finder-like directory map (StructureView + dirStats per-dir size badges), activity-bar button + sidebar branch wired to leftView="structure". test: tests/d1-structure.mjs PASS 9/9 — 4/4 wiring points, build green. (starts Goal 4 — directory map; D2–D4 add symbols/roles/drill-down.)
 - 2026-06-18 U4b — focus/usage-flow graph laid out as a left→right DAG (dagMode=lr + onDagError) so call order reads as a flow; overview stays force. test: tests/u4b-dag.mjs PASS. (added per user feedback — force blob didn't read as a flow.)
 - 2026-06-18 U4 — graph tab defaults to the README usage-flow subgraph (openGraph→apiUsageFlow→focus); "Full overview" switches. test: tests/u4-default-flow.mjs PASS — default 18 vs overview 68.
 - 2026-06-18 U3 — /api/suggest returns 3–5 example entry-point prompts (README symbols + hubs). test: tests/u3-suggest.mjs PASS — slugify 5 suggestions, usage traces + overview.

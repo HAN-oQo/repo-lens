@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Explorer from "@/components/Explorer";
+import StructureView from "@/components/StructureView";
 import CodeView from "@/components/CodeView";
 import MarkdownView from "@/components/MarkdownView";
 import GraphView from "@/components/GraphView";
@@ -55,7 +56,7 @@ export default function Home() {
 
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTab, setActiveTab] = useState<string>("");
-  const [leftView, setLeftView] = useState<"explorer" | "search">("explorer");
+  const [leftView, setLeftView] = useState<"explorer" | "structure" | "search">("explorer");
 
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [graphBuilding, setGraphBuilding] = useState(false);
@@ -524,6 +525,7 @@ export default function Home() {
         {/* activity bar */}
         <div className="activitybar">
           <button className={leftView === "explorer" ? "active" : ""} title="Explorer" onClick={() => setLeftView("explorer")}>🗂️</button>
+          <button className={leftView === "structure" ? "active" : ""} title="Structure" onClick={() => setLeftView("structure")} disabled={!repo}>📂</button>
           <button className={leftView === "search" ? "active" : ""} title="Search" onClick={() => setLeftView("search")}>🔍</button>
           <button className={activeTabObj?.kind === "graph" ? "active" : ""} title="Knowledge Graph" onClick={openGraph} disabled={!repo}>🕸</button>
           <div style={{ flex: 1 }} />
@@ -539,6 +541,11 @@ export default function Home() {
                 {truncated && <span title="Tree truncated by GitHub" style={{ color: "var(--amber)" }}>⚠</span>}
               </div>
               <Explorer tree={tree} selected={activeTabObj?.kind === "file" ? activeTab : null} onOpen={openFile} />
+            </>
+          ) : leftView === "structure" ? (
+            <>
+              <div className="sidebar-head"><span>Structure</span></div>
+              <StructureView tree={tree} selected={activeTabObj?.kind === "file" ? activeTab : null} onOpen={openFile} />
             </>
           ) : (
             <>

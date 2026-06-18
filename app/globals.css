@@ -114,6 +114,8 @@ button { font-family: inherit; }
 .row .ficon { width: 16px; flex: none; text-align: center; opacity: .9; }
 .row .fname { overflow: hidden; text-overflow: ellipsis; }
 .more-row .fname { color: var(--accent); font-style: italic; }
+.row .dir-meta { margin-left: auto; padding-left: 10px; font-size: 10px; color: var(--muted); flex: none; }
+.struct-summary { padding: 4px 14px 8px; font-size: 11px; }
 .dim { color: var(--muted); }
 
 .search-box { padding: 10px 12px; }

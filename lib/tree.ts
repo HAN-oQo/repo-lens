@@ -54,6 +54,24 @@ export function visibleChildren<T>(
   return { shown: children.slice(0, cap), more: children.length - cap };
 }
 
+/** Count descendant directories + files under a node (recursive). Used by the
+ *  Structure view to label each directory with its subtree size. */
+export function dirStats(node: FileNode): { dirs: number; files: number } {
+  let dirs = 0;
+  let files = 0;
+  for (const c of node.children || []) {
+    if (c.type === "tree") {
+      dirs += 1;
+      const s = dirStats(c);
+      dirs += s.dirs;
+      files += s.files;
+    } else {
+      files += 1;
+    }
+  }
+  return { dirs, files };
+}
+
 // Folders first, then files, both alphabetical (case-insensitive).
 function sortNode(node: FileNode) {
   if (!node.children) return;
