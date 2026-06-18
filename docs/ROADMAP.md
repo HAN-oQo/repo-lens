@@ -117,10 +117,9 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
     `focusGraph` is active and provides `onDagError`; overview (no focus) uses no dagMode.
     Build green. (Visual layout confirmed manually.) Metric: dag enabled for focus only.
   - *Result:* PASS 2026-06-18 — focus graph uses `dagMode="lr"` + `onDagError`; overview unchanged (force); build green. Readability follow-up: labels always shown in focus, drawn on a background pill at ~constant screen size, `dagLevelDistance=110` for spacing (was overlapping). Test 8/8. (Left→right flow confirmed manually.)
-- [ ] **U5 — Example chips in the UI.** Clickable suggested entry points → focus that flow.
-  - *Test:* `tests/u5-chips.mjs` — built bundle renders chips from `/api/suggest`; clicking
-    calls focus (source/bundle check + endpoint smoke).
-  - *Result:* (pending)
+- [!] **U5 — Example chips in the UI.** MERGED into Goal 6 (V6). The `/api/suggest` chips
+  trigger the same query→view flow as V6's query-driven tabs; building them separately
+  (chips→focus) would just be reworked by V6. V6 now renders the chips + opens the tab.
 
 ## Goal 4 — Directory map (structure + roles + flow)
 - [ ] **D1 — Structure panel + activity-bar icon.** New 📂 left view, Finder-like dir tree.
@@ -141,11 +140,9 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Test:* `tests/d4-drilldown.mjs` — source/bundle check: structure view renders role
     at each level from `/api/fileinfo` + `/api/summary`.
   - *Result:* (pending)
-- [ ] **D5 — Command-flow visualization.** Ordered, colored/numbered call path for an
-  entry command (mind-map style).
-  - *Test:* `tests/d5-flow.mjs` — `/api/flow?repo=&entry=slugify` returns an ordered node
-    sequence; assert order 1→2→3 is a valid path in the graph. Metric: path length.
-  - *Result:* (pending)
+- [!] **D5 — Command-flow visualization.** MERGED into Goal 6. "Ordered/colored call path /
+  mind-map" = the DAG (U4b) + call-tree (V2) + mermaid (V3) renderers applied to a flow
+  subgraph (`extractSubgraphBySymbols` already produces the path). No separate `/api/flow`.
 
 ---
 
@@ -161,7 +158,8 @@ Token is in `.env` (`ASK_TOKEN`, gitignored). Commit + push to **HAN-oQo**, rest
   - *Result:* (pending)
 - [ ] **P2 — Restore open tabs + active tab on reload.** Persist the open file tabs +
   active tab per repo (localStorage, keyed by owner/repo); restore them after the repo
-  loads so refresh keeps your open files, not just the repo.
+  loads so refresh keeps your open files, not just the repo. **(Depends on Goal 6's tab
+  model — do after V5/V6 so we persist the final tab shape, not a soon-reworked one.)**
   - *Test:* `tests/p2-tabs.mjs` — tab list serialize/parse round-trips; source assertion
     that tabs are restored for the matching repo on load. Metric: tabs restored.
   - *Result:* (pending)
@@ -173,8 +171,8 @@ step-list · Mermaid flowchart) next to File · Search. Each viz opens with **Ov
 **Quickstart** tabs; asking *"show X as a DAG / call tree / flowchart"* spawns a **new
 tab** rendering that query's focus subgraph in the chosen visualization.
 - [ ] **V1 — Pluggable graph render modes.** One graph component renders a `GraphData`
-  in `mode ∈ {force, dag, tree, mermaid}` with a mode switcher in the panel header.
-  Fold the existing force-overview + dag-flow behind the switch.
+  in `mode ∈ {force, dag, tree, mermaid}` (mode chosen via V4's left-rail entries, not a
+  second in-panel switcher). Fold the existing force-overview + dag-flow (U4b) behind it.
   - *Test:* `tests/v1-modes.mjs` — component accepts a `mode` prop and branches to each
     renderer; the same data renders in every mode without error. Metric: # modes.
   - *Result:* (pending)
@@ -199,18 +197,31 @@ tab** rendering that query's focus subgraph in the chosen visualization.
   - *Test:* `tests/v5-default-tabs.mjs` — after load the tab set includes Overview +
     Quickstart; backend data for both is present. Metric: tabs seeded.
   - *Result:* (pending)
-- [ ] **V6 — Query-driven tabs.** Parse the Ask question for a requested viz + target
-  ("show the request flow as a flowchart") and, on answer, open a NEW tab holding that
-  query's focus subgraph in the requested viz (default DAG).
+- [ ] **V6 — Query-driven tabs (+ suggestion chips).** Parse the Ask question for a
+  requested viz + target ("show the request flow as a flowchart") and, on answer, open a
+  NEW tab holding that query's focus subgraph in the requested viz (default DAG). Also
+  render the `/api/suggest` items as clickable chips that open these tabs (absorbs U5).
   - *Test:* `tests/v6-query-tabs.mjs` — pure `parseVizRequest("… as a flowchart")` →
-    `{ viz:"mermaid" }` (and "dag"/"call tree" variants); handleAskDone opens a tab
-    (source assertion). Metric: viz parsed for each phrasing.
+    `{ viz:"mermaid" }` (and "dag"/"call tree" variants); handleAskDone opens a tab;
+    chips render from /api/suggest (source assertion). Metric: viz parsed for each phrasing.
   - *Result:* (pending)
+
+## Goal 7 — Cleanup & DRY (bounded; no behavior change)
+- [ ] **C1 — Dedupe the README-read block + scan for dead code.** `/api/usage`,
+  `/api/usageflow`, `/api/suggest` each repeat `listTree → findReadme → readRepoFile`;
+  extract one `readRepoReadme(dir)` helper (in repo.mjs) and use it in all three. Also
+  scan for clearly-unused exports/keys and drop them. No behavior change.
+  - *Test:* `tests/c1-cleanup.mjs` — runs the existing endpoint tests' data path (usage/
+    suggest still return the same shape) + asserts the 3 endpoints call the shared helper
+    (source: no repeated `findReadme(` blocks in api.mjs). Build green. Metric: LOC removed.
+  - *Result:* (pending)
+  - *Note:* the A2 leftover Korean strings in `t("en","ko")` call sites are harmless dead
+    args (ignored at runtime); not worth touching ~30 sites for no functional gain — skip.
 
 ## Backlog / later (not localhost-blocking)
 - CE deploy of all the above (`docs/repo-lens-ce-deploy.html`).
 - Public Pages demo flip to the CE backend.
-- Feature B (step-by-step walk animation) overlaps with D5.
+- Step-by-step walk animation along a flow path — overlaps Goal 6 (V2/V3); revisit after.
 
 ## Changelog (most recent first)
 <!-- /next appends: `- YYYY-MM-DD <ID> — what was done (test: tests/<id>.mjs, result)` -->
