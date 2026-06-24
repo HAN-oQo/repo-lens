@@ -30,7 +30,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_BASE: ${{ vars.REPOLENS_API_BASE }}
           NEXT_PUBLIC_OAUTH_BASE: ${{ vars.REPOLENS_OAUTH_BASE }}
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: out
 
